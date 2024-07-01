@@ -1,0 +1,27 @@
+{
+  "canisters": {
+    "ic-vectune-backend": {
+      "candid": "src/ic-vectune-backend/ic-vectune-backend.did",
+      "package": "ic-vectune-backend",
+      "type": "rust"
+    },
+    "ic-vectune-frontend": {
+      "dependencies": [
+        "ic-vectune-backend"
+      ],
+      "source": [
+        "src/ic-vectune-frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "ic-vectune-frontend"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
