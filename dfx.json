@@ -1,19 +1,19 @@
 {
   "canisters": {
-    "ic-vectune-backend": {
-      "candid": "src/ic-vectune-backend/ic-vectune-backend.did",
-      "package": "ic-vectune-backend",
+    "instance_1m": {
+      "candid": "src/instance/instance.did",
+      "package": "instance",
       "type": "rust"
     },
-    "ic-vectune-frontend": {
-      "dependencies": [
-        "ic-vectune-backend"
-      ],
-      "source": [
-        "src/ic-vectune-frontend/dist"
-      ],
-      "type": "assets",
-      "workspace": "ic-vectune-frontend"
+    "instance_10m": {
+      "candid": "src/instance/instance.did",
+      "package": "instance",
+      "type": "rust"
+    },
+    "instance_100m": {
+      "candid": "src/instance/instance.did",
+      "package": "instance",
+      "type": "rust"
     }
   },
   "defaults": {
