@@ -4,7 +4,7 @@ use anyhow::Result;
 use bitvec::prelude::*;
 use bytesize::KIB;
 use candid::{Decode, Encode};
-use ic_agent::{agent::http_transport::reqwest_transport::reqwest::Response, export::Principal, identity, Agent};
+use ic_agent::{export::Principal, identity, Agent};
 use memmap2::Mmap;
 use ssd_vectune::{graph::GraphMetadata, original_vector_reader::{read_ivecs, OriginalVectorReader, OriginalVectorReaderTrait}};
 use tokio;
@@ -74,8 +74,11 @@ enum Commands {
         ic: bool,
         #[arg(long)]
         simd: bool,
+        #[arg(long, default_value = "./query_set/query.public.10K.fbin")]
         query_path: String,
+        #[arg(long, default_value = "./query_set/gt/deep100M_groundtruth.ivecs")]
         ground_truth_path: String,
+
         target_canister_id: String,
     },
 }
@@ -183,7 +186,7 @@ async fn main() -> Result<()> {
                     })
                 });
         
-                let _results: Vec<_> = task_stream.buffered(10).collect().await;
+                let _results: Vec<_> = task_stream.buffered(20).collect().await;
             }
         
         
@@ -200,13 +203,13 @@ async fn main() -> Result<()> {
         
             let query_iter = 100;
             let mut total_time = 0;
-            // let mut rng = thread_rng();
+            let mut rng = thread_rng();
         
             let mut hit_sum = 0;
             for query_index in 0..query_iter {
-                // let random_query_index  = rng.gen_range(0..query_vector_reader.get_num_vectors());
-                // let query_vector: Vec<f32> = query_vector_reader.read(&random_query_index).unwrap();
-                let query_vector: Vec<f32> = query_vector_reader.read(&query_index).unwrap();
+                let random_query_index  = rng.gen_range(0..query_vector_reader.get_num_vectors());
+                let query_vector: Vec<f32> = query_vector_reader.read(&random_query_index).unwrap();
+                // let query_vector: Vec<f32> = query_vector_reader.read(&query_index).unwrap();
                 println!("query_index {query_index}");
         
                 let start = Instant::now();
@@ -217,7 +220,7 @@ async fn main() -> Result<()> {
                 total_time += t;
         
                 let result_top_5: Vec<u32> = k_ann.into_iter().map(|(_, i)| i).collect();
-                let top5_groundtruth = &groundtruth[query_index][0..5];
+                let top5_groundtruth = &groundtruth[random_query_index][0..5];
                 println!("{:?}\n{:?}", top5_groundtruth, result_top_5);
                 let mut hit = 0;
                 for res in result_top_5 {

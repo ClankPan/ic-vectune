@@ -1,6 +1,6 @@
 [workspace]
 members = [
     "src/instance",
-    "bin/uploader"
+    "bin/tool"
 ]
 resolver = "2"
