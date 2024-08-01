@@ -4,6 +4,9 @@ service : {
   missing_chunks : (nat64) -> (opt blob) query;
   reset : () -> ();
   search : (vec float32, nat64, nat64) -> (vec record { float32; nat32 }) query;
+  search_with_simd : (vec float32, nat64, nat64) -> (
+      vec record { float32; nat32 },
+    ) query;
   start : () -> ();
   status_code : () -> (nat8) query;
   upload_chunk : (blob, nat64) -> ();

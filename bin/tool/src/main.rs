@@ -3,14 +3,14 @@ use std::{fs::File, sync::Arc, time::Instant};
 use anyhow::Result;
 use bitvec::prelude::*;
 use bytesize::KIB;
-use candid::{Decode, Encode};
+use candid::{CandidType, Decode, Encode};
 use ic_agent::{export::Principal, identity, Agent};
 use memmap2::Mmap;
+use serde::Deserialize;
 use ssd_vectune::{graph::GraphMetadata, original_vector_reader::{read_ivecs, OriginalVectorReader, OriginalVectorReaderTrait}};
 use tokio;
 use rand::{thread_rng, Rng};
 use futures::stream::{self, StreamExt};
-
 
 //  cargo run --release --bin uploader -- upload  <graph path> <graph metadata path> <canister id> --name clankpan
 
@@ -208,8 +208,8 @@ async fn main() -> Result<()> {
             let mut hit_sum = 0;
             for query_index in 0..query_iter {
                 let random_query_index  = rng.gen_range(0..query_vector_reader.get_num_vectors());
+                // let random_query_index = query_index;
                 let query_vector: Vec<f32> = query_vector_reader.read(&random_query_index).unwrap();
-                // let query_vector: Vec<f32> = query_vector_reader.read(&query_index).unwrap();
                 println!("query_index {query_index}");
         
                 let start = Instant::now();
@@ -281,6 +281,13 @@ async fn get_anonymous_agent(is_ic: bool) -> Result<Agent> {
     Ok(agent)
 }
 
+#[derive(CandidType, Deserialize)]
+pub struct ResponseSearchQuery {
+    k_ann: Vec<(f32, u32)>,
+    visited: Vec<(f32, u32)>,
+    time: u64,
+}
+
 async fn call_search(
     agent: &Agent,
     target_canister_id: Principal,
@@ -295,9 +302,10 @@ async fn call_search(
         .with_arg(Encode!(query_vector, &top_k, &size_l)?)
         .call()
         .await?;
-    let status_code = Decode!(&response, Vec<(f32, u32)>)?;
+    let k_ann = Decode!(&response, Vec<(f32, u32)>)?;
+    // println!("time: {}", response.time);
 
-    Ok(status_code)
+    Ok(k_ann)
 }
 
 async fn call_status_code(

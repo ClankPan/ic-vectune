@@ -19,5 +19,5 @@ bytesize = "1.3.0"
 clap = { version = "4.5.4", features = ["derive"] }
 rand = { version = "0.8", features = ["small_rng"] }
 # vectune = {path = "../../../vectune", features = []}
-vectune = {git = "https://github.com/ClankPan/Vectune", rev = "8194d97218a7ae777d70922b503119db4e6eba41", features = []}
-ssd-vectune = {git = "https://github.com/ClankPan/ssd-vectune", rev = "1d8234b5bb103c1b0b097198090a4702efb2ca76", features = []}
+vectune = {git = "https://github.com/ClankPan/Vectune", rev = "71b54477b8719ef418342e677f1543a6e3b41909", features = []}
+ssd-vectune = {git = "https://github.com/ClankPan/ssd-vectune", rev = "a8e0401ca3ea2b424ba7c9f1d02d5fc985431922", features = []}

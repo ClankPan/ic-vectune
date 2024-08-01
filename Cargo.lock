@@ -1203,8 +1203,8 @@ dependencies = [
  "ic-stable-structures",
  "rand",
  "serde",
- "ssd-vectune",
- "vectune",
+ "ssd-vectune 0.1.0",
+ "vectune 0.2.0",
 ]
 
 [[package]]
@@ -2213,7 +2213,6 @@ dependencies = [
 [[package]]
 name = "ssd-vectune"
 version = "0.1.0"
-source = "git+https://github.com/ClankPan/ssd-vectune?rev=1d8234b5bb103c1b0b097198090a4702efb2ca76#1d8234b5bb103c1b0b097198090a4702efb2ca76"
 dependencies = [
  "anyhow",
  "bit-set",
@@ -2234,7 +2233,34 @@ dependencies = [
  "rustc-hash",
  "serde",
  "serde_json",
- "vectune",
+ "vectune 0.2.0",
+]
+
+[[package]]
+name = "ssd-vectune"
+version = "0.1.0"
+source = "git+https://github.com/ClankPan/ssd-vectune?rev=a8e0401ca3ea2b424ba7c9f1d02d5fc985431922#a8e0401ca3ea2b424ba7c9f1d02d5fc985431922"
+dependencies = [
+ "anyhow",
+ "bit-set",
+ "bit-vec",
+ "bytemuck",
+ "byteorder",
+ "bytesize",
+ "clap",
+ "ext-sort",
+ "indicatif",
+ "itertools 0.13.0",
+ "kd-tree",
+ "memmap2",
+ "ndarray",
+ "parking_lot",
+ "rand",
+ "rayon",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=71b54477b8719ef418342e677f1543a6e3b41909)",
 ]
 
 [[package]]
@@ -2450,9 +2476,9 @@ dependencies = [
  "memmap2",
  "rand",
  "serde",
- "ssd-vectune",
+ "ssd-vectune 0.1.0 (git+https://github.com/ClankPan/ssd-vectune?rev=a8e0401ca3ea2b424ba7c9f1d02d5fc985431922)",
  "tokio",
- "vectune",
+ "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=71b54477b8719ef418342e677f1543a6e3b41909)",
 ]
 
 [[package]]
@@ -2584,7 +2610,23 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 [[package]]
 name = "vectune"
 version = "0.2.0"
-source = "git+https://github.com/ClankPan/Vectune?rev=8194d97218a7ae777d70922b503119db4e6eba41#8194d97218a7ae777d70922b503119db4e6eba41"
+dependencies = [
+ "bit-vec",
+ "dashmap",
+ "indicatif",
+ "itertools 0.12.1",
+ "parking_lot",
+ "rand",
+ "rayon",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "vectune"
+version = "0.2.0"
+source = "git+https://github.com/ClankPan/Vectune?rev=71b54477b8719ef418342e677f1543a6e3b41909#71b54477b8719ef418342e677f1543a6e3b41909"
 dependencies = [
  "bit-vec",
  "dashmap",

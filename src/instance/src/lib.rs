@@ -19,7 +19,7 @@ use bytesize::MIB;
 use simd_point::Point as SIMDPoint;
 
 /* Set custom random function */
-use rand::rngs::StdRng;
+use rand::rngs::{SmallRng, StdRng};
 use rand::{thread_rng, Rng, RngCore, SeedableRng};
 use getrandom::register_custom_getrandom;
 // See here : https://forum.dfinity.org/t/issue-about-generate-random-string-panicked-at-could-not-initialize-thread-rng-getrandom-this-target-is-not-supported/15198/8?u=kinicdevcontributor
@@ -290,12 +290,22 @@ async fn reset() {
     // })
 }
 
+#[derive(CandidType)]
+pub struct ResponseSearchQuery {
+    k_ann: Vec<(f32, u32)>,
+    visited: Vec<(f32, u32)>,
+    time: u64,
+}
+
 #[query]
 fn search(query_vector: Vec<f32>, top_k: u64, size_l: u64) -> Vec<(f32, u32)> {
 
     // ic_cdk::println!("{}\n{}", usize::MAX, u64::MAX);
 
     // ic_cdk::println!("stable_size u32: {}", ic_cdk::api::stable::stable_size() * WASM_PAGE_SIZE);
+
+    let start = ic_cdk::api::time();
+    ic_cdk::println!("time: {}",ic_cdk::api::time());
 
     assert!(top_k <= size_l);
 
@@ -322,9 +332,15 @@ fn search(query_vector: Vec<f32>, top_k: u64, size_l: u64) -> Vec<(f32, u32)> {
 
         graph.set_size_l(size_l as usize);
 
-        let (k_ann, visited) = vectune::search(&mut graph, &Point::from_f32_vec(query_vector), top_k as usize);
+        let mut rng = SmallRng::seed_from_u64(ic_cdk::api::time());
 
-        ic_cdk::println!("visited len: {}", visited.len());
+        // let ((k_ann, _visited), _) = vectune::search_with_optimal_stopping(&mut graph, &Point::from_f32_vec(query_vector), top_k as usize, &mut rng);
+        let (k_ann, _visited)= vectune::search(&mut graph, &Point::from_f32_vec(query_vector), top_k as usize);
+
+        // let time = ic_cdk::api::time() - start;
+
+        // ic_cdk::println!("visited len: {}, time: {}", visited.len(), ic_cdk::api::time());
+        ic_cdk::println!("time: {}",ic_cdk::api::time());
 
         k_ann
     })
