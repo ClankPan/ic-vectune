@@ -18,7 +18,6 @@ impl Point {
 }
 
 impl PointInterface for Point {
-
     #[cfg(not(target_arch = "wasm32"))]
     fn distance(&self, other: &Self) -> f32 {
         self.0

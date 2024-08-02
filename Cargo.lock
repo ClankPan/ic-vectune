@@ -1201,6 +1201,8 @@ dependencies = [
  "ic-cdk",
  "ic-cdk-timers",
  "ic-stable-structures",
+ "num-bigint",
+ "num-traits",
  "rand",
  "serde",
  "ssd-vectune 0.1.0",

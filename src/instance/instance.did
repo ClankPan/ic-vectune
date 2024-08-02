@@ -1,13 +1,53 @@
-service : {
+type ChunkType = variant { Graph; BacklinksMap; DataMap };
+type DbMetadata = record {
+  is_complete_hnsw_chunks : bool;
+  owners : vec text;
+  name : text;
+  is_deserialized : bool;
+  stable_memory_size : nat32;
+  version : text;
+  cycle_amount : nat64;
+  db_key : text;
+  is_complete_source_chunks : bool;
+};
+type IcStatus = record {
+  freezing_threshold : nat;
+  controllers : vec text;
+  memory_size : nat;
+  cycles : nat;
+  idle_cycles_burned_per_day : nat;
+  module_hash : opt blob;
+  memory_allocation : nat;
+  compute_allocation : nat;
+};
+service : (record { principal; text; text }) -> {
+  add_new_owner : (principal) -> ();
+  change_name : (text) -> ();
+  commit : () -> ();
+  get_current_status : () -> (IcStatus);
+  get_metadata : () -> (DbMetadata) query;
+  get_name : () -> (text) query;
+  get_prev_status : () -> (IcStatus) query;
   greet : (text) -> (text) query;
-  initialize : (nat64, nat64, nat32, nat64, nat64, nat64, nat64) -> ();
-  missing_chunks : (nat64) -> (opt blob) query;
+  missing_chunks : (nat64, ChunkType) -> (opt blob) query;
   reset : () -> ();
   search : (vec float32, nat64, nat64) -> (vec record { float32; nat32 }) query;
   search_with_simd : (vec float32, nat64, nat64) -> (
       vec record { float32; nat32 },
     ) query;
-  start : () -> ();
+  start_loading : (
+      nat64,
+      nat64,
+      nat64,
+      nat64,
+      nat32,
+      nat64,
+      nat64,
+      nat64,
+      nat64,
+      text,
+    ) -> ();
+  start_running : () -> ();
   status_code : () -> (nat8) query;
-  upload_chunk : (blob, nat64) -> ();
+  upload_chunk : (blob, nat64, ChunkType) -> ();
 }
