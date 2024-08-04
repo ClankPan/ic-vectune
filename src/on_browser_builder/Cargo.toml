@@ -1,0 +1,41 @@
+[package]
+name = "on_browser_builder"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# candle-core = "0.3.1"
+# candle-nn = "0.3.1"
+# candle-transformers = "0.3.1"
+# num-traits = "0.2.17"
+# tokenizers = {version = "0.15.0", features = ["unstable_wasm"], default-features = false}
+# instant-distance = {version = "0.6.1",  features = ["with-serde"], package = "instant-distance"}
+
+# [lib]
+# crate-type = ["cdylib"]
+
+# App crates.
+# anyhow = {version = "1.0.75", features = ["backtrace"]}
+# byteorder = "1.5.0"
+# log = "0.4.20"
+# rand = "0.8.5"
+serde = { version = "1.0.193", features = ["derive"] }
+serde_json = "1.0.108"
+anyhow = "1.0.86"
+# safetensors = "0.4.1"
+
+base64 = "0.13.0"
+
+# Wasm specific crates.
+console_error_panic_hook = "0.1.7"
+getrandom = { version = "0.2", features = ["js"] }
+gloo = "0.8"
+js-sys = "0.3.64"
+wasm-bindgen = "0.2.89"
+serde-wasm-bindgen = "0.6.0"
+
+# IC
+ic-stable-structures = "0.6.5"
+
+ssd-vectune = {path = "../../../ssd-vectune", features = []}
+bytemuck = "1.15.0"

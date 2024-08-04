@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "src/instance",
-    "bin/tool"
+    "bin/tool",
+    "src/on_browser_builder"
 ]
 resolver = "2"
