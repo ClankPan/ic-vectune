@@ -23,3 +23,9 @@ dist/
 
 # environment variables
 .env
+
+/wasm_bindgen
+
+/src/on_browser_builder/models/model.safetensors
+/src/on_browser_builder/models/config.json
+/src/on_browser_builder/models/tokenizer.json

@@ -14,3 +14,5 @@ macro_rules! console_log {
     // `bare_bones`
     ($($t:tt)*) => ($crate::log(&format_args!($($t)*).to_string()))
 }
+
+// cargo build --target wasm32-unknown-unknown --release -p on_browser_builder && wasm-bindgen ./target/wasm32-unknown-unknown/release/m.wasm --out-dir wasm_bindgen --target web

@@ -5,15 +5,103 @@ use ic_stable_structures::{BTreeMap as StableBTreeMap, Memory};
 use ssd_vectune::{graph_store::GraphStore, storage::StorageTrait, original_vector_reader::OriginalVectorReaderTrait};
 use anyhow::Result;
 
+// candle lib
+use candle_core::{DType, Device, Tensor};
+use candle_nn::VarBuilder;
+use candle_transformers::models::bert::{BertModel, Config};
+use tokenizers::{PaddingParams, Tokenizer};
+
+use base64::{Engine as Base64Engine, engine::general_purpose};
+
+// const INSTANCE_BYTES: &[u8] = include_bytes!("models/model.safetensors");
+const WEIGHTS: &[u8] = include_bytes!("../../models/model.safetensors");
+const CONFIG: &[u8] = include_bytes!("../../models/config.json");
+const TOKENIZER: &[u8] = include_bytes!("../../models/tokenizer.json");
+
 const WASM_PAGE_SIZE: u64 = 65536;
 
-/*
+#[wasm_bindgen]
+pub struct EmbeddingModel {
+    bert: BertModel,
+    tokenizer: Tokenizer,
+}
+#[wasm_bindgen]
+impl EmbeddingModel {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Result<EmbeddingModel, JsError> {
 
-jsonを読み込んで、embeddingがないものだけをembeddして、call_backでそれぞれを渡す。
+        console_error_panic_hook::set_once();
+        // console_log!("loading model");
+        let device = &Device::Cpu;
+        let vb = VarBuilder::from_buffered_safetensors(WEIGHTS.to_vec(), DType::F32, device)?;
+        let config: Config = serde_json::from_slice(CONFIG)?;
+        let tokenizer =
+            Tokenizer::from_bytes(TOKENIZER).map_err(|m| JsError::new(&m.to_string()))?;
+        let bert = BertModel::load(vb, &config)?;
 
-embedding -> vamana -> rbtree
+        Ok(Self {
+            bert,
+            tokenizer,
+        })
+    }
 
-*/
+    pub fn get_embeddings(&mut self, input: JsValue) -> Result<JsValue, JsError> {
+        let sentences: Vec<String> =
+            serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
+        let embeddings = self._get_embeddings(&sentences, true)?;
+
+
+        Ok(serde_wasm_bindgen::to_value(&embeddings)?)
+    }
+
+    fn _get_embeddings(&mut self, sentences: &Vec<String>, normalize_embeddings: bool) -> Result<Vec<Vec<f32>>, JsError> {
+
+        let device = &Device::Cpu;
+        // set padding setting
+        if let Some(pp) = self.tokenizer.get_padding_mut() {
+            pp.strategy = tokenizers::PaddingStrategy::BatchLongest
+        } else {
+            let pp = PaddingParams {
+                strategy: tokenizers::PaddingStrategy::BatchLongest,
+                ..Default::default()
+            };
+            self.tokenizer.with_padding(Some(pp));
+        }
+        // set truncation setting TruncationParams
+        let _ = self.tokenizer.with_truncation(Some(tokenizers::TruncationParams::default()));
+
+        let tokens = self
+            .tokenizer
+            .encode_batch(sentences.to_vec(), true)
+            .map_err(|m| JsError::new(&m.to_string()))?;
+
+        let token_ids: Vec<Tensor> = tokens
+            .iter()
+            .map(|tokens| {
+                let tokens = tokens.get_ids().to_vec();
+                Tensor::new(tokens.as_slice(), device)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let token_ids = Tensor::stack(&token_ids, 0)?;
+        let token_type_ids = token_ids.zeros_like()?;
+        // console_log!("running inference on batch {:?}", token_ids.shape());
+        let embeddings = self
+            .bert
+            .forward(&token_ids, &token_type_ids)?;
+        // console_log!("generated embeddings {:?}", embeddings.shape());
+        // Apply some avg-pooling by taking the mean embedding value for all tokens (including padding)
+        let (_n_sentence, n_tokens, _hidden_size) = embeddings.dims3()?;
+        let embeddings = (embeddings.sum(1)? / (n_tokens as f64))?;
+        let embeddings = if normalize_embeddings {
+            embeddings.broadcast_div(&embeddings.sqr()?.sum_keepdim(1)?.sqrt()?)?
+        } else {
+            embeddings
+        };
+        let embeddings_data = embeddings.to_vec2()?;
+        Ok(embeddings_data)
+    }
+}
 
 struct ICMemory {
 //   mem: Vec<u8>,
@@ -63,11 +151,6 @@ impl ICRBTree {
         self.ic_rbtree.insert(key, value)
     }
 
-    // pub fn build_from_string(&mut self, items: Vec<String>) {
-    //     let items: Vec<Vec<u8>> = items.into_iter().map(|item| item.into_bytes()).collect();
-    //     self.build_from_vec_u8(items)
-    // }
-
     pub fn build_from_vec_u8(items: Vec<Vec<u8>>) -> Self {
         let mut ic_rbtree = StableBTreeMap::new(ICMemory {mem: RefCell::new(vec![])});
         for (index, item) in items.into_iter().enumerate() {
@@ -108,16 +191,12 @@ impl Storage {
 
 impl StorageTrait for Storage {
     fn read(&self, offset: u64, dst: &mut [u8]) {
-        // let slice = &self.mem.borrow()[offset as usize..offset as usize + dst.len()];
-        // dst.copy_from_slice(slice);
         let mem = self.mem.read().unwrap();
         let slice = &mem[offset as usize..offset as usize + dst.len()];
         dst.copy_from_slice(slice);
     }
 
     fn write(&self, offset: u64, src: &[u8]) {
-        // let slice = &mut self.mem.borrow_mut()[offset as usize..offset as usize + src.len()];
-        // slice.copy_from_slice(src);
         let mut mem = self.mem.write().unwrap();
         let slice = &mut mem[offset as usize..offset as usize + src.len()];
         slice.copy_from_slice(src);
@@ -180,32 +259,47 @@ impl Vectune {
     }
 
     pub fn build(&mut self, input: JsValue) -> Result<Vec<u8>, JsError> {
+        let mut bert = EmbeddingModel::new()?;
         let mut data_map = ICRBTree::new();
         let items: Items = serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
+        
         let vectors: Vec<Vec<f32>> = items.into_iter().enumerate().map(|(index, item)| {
 
             // Insert data to ic-rbtree
             let index: u32 = index.try_into().unwrap();
-            let _ = data_map.insert(index, item.text.into_bytes());
+            let _ = data_map.insert(index, item.text.clone().into_bytes());
 
             // Vectorize text if embeddings is null
             if let Some(embeddings) = item.embeddings {
-                if let Ok(bytes) = base64::decode(embeddings) {
+                if let Ok(bytes) = general_purpose::STANDARD.decode(embeddings) {
                     if let Ok(slice) = bytemuck::try_cast_slice(&bytes) {
                         let vector: Vec<f32> = slice.to_vec();
-                        return vector;
+                        return Ok(vector);
                     }
                 }
             }
+            // todo: use batch embedding
+            match bert._get_embeddings(&vec![item.text], true) {
+                Ok(embeddings) => Ok(embeddings[0].clone()),
+                Err(err) => Err(err),
+            }
 
-            todo!()
-        }).collect();
+        })
+        .collect::<Result<Vec<Vec<f32>>, _>>()?;
+
+
         let file_byte_size = ssd_vectune::utils::node_byte_size(self.dim) * vectors.len();
         let storage = Storage::new(file_byte_size.try_into().unwrap());
         let graph_on_storage = GraphStore::new(vectors.len(), self.dim, self.degree, storage);
         let vector_reader = VectorReader {
             vectors
         };
+
+        /*
+        
+        wip:
+        vectorsを呼び出し元のjsにJSONとして渡す。
+        */
 
         let (medoid_index, backlinks) = ssd_vectune::single_index::single_index(&vector_reader, &graph_on_storage, self.seed);
 
