@@ -1840,8 +1840,8 @@ dependencies = [
  "num-traits",
  "rand",
  "serde",
- "ssd-vectune 0.1.0",
- "vectune 0.2.0",
+ "ssd-vectune 0.1.0 (git+https://github.com/ClankPan/ssd-vectune?rev=e7afe56a691f563f461d76e3a663dbaccd2041c2)",
+ "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=6210ad5284a632bb0cecae945bd3965df81592e5)",
 ]
 
 [[package]]
@@ -3161,7 +3161,7 @@ dependencies = [
  "rustc-hash",
  "serde",
  "serde_json",
- "vectune 0.2.0",
+ "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=6210ad5284a632bb0cecae945bd3965df81592e5)",
 ]
 
 [[package]]
@@ -3189,6 +3189,33 @@ dependencies = [
  "serde",
  "serde_json",
  "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=71b54477b8719ef418342e677f1543a6e3b41909)",
+]
+
+[[package]]
+name = "ssd-vectune"
+version = "0.1.0"
+source = "git+https://github.com/ClankPan/ssd-vectune?rev=e7afe56a691f563f461d76e3a663dbaccd2041c2#e7afe56a691f563f461d76e3a663dbaccd2041c2"
+dependencies = [
+ "anyhow",
+ "bit-set",
+ "bit-vec",
+ "bytemuck",
+ "byteorder",
+ "bytesize",
+ "clap",
+ "ext-sort",
+ "indicatif",
+ "itertools 0.13.0",
+ "kd-tree",
+ "memmap2",
+ "ndarray",
+ "parking_lot",
+ "rand",
+ "rayon",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=6210ad5284a632bb0cecae945bd3965df81592e5)",
 ]
 
 [[package]]
@@ -3658,6 +3685,22 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 [[package]]
 name = "vectune"
 version = "0.2.0"
+dependencies = [
+ "bit-vec",
+ "dashmap",
+ "itertools 0.12.1",
+ "parking_lot",
+ "rand",
+ "rayon",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "vectune"
+version = "0.2.0"
+source = "git+https://github.com/ClankPan/Vectune?rev=6210ad5284a632bb0cecae945bd3965df81592e5#6210ad5284a632bb0cecae945bd3965df81592e5"
 dependencies = [
  "bit-vec",
  "dashmap",
