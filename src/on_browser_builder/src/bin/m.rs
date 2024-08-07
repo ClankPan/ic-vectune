@@ -1,9 +1,21 @@
-use std::{cell::RefCell, sync::{Arc, RwLock}};
+use std::{
+    cell::RefCell,
+    sync::{Arc, RwLock},
+};
 
+use log::debug;
+
+use vectune::PointInterface;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_test::wasm_bindgen_test_configure;
+wasm_bindgen_test_configure!(run_in_browser);
+
+use anyhow::{Error, Result};
 use ic_stable_structures::{BTreeMap as StableBTreeMap, Memory};
-use ssd_vectune::{graph_store::GraphStore, storage::StorageTrait, original_vector_reader::OriginalVectorReaderTrait};
-use anyhow::Result;
+use ssd_vectune::{
+    graph_store::GraphStore, original_vector_reader::OriginalVectorReaderTrait,
+    storage::StorageTrait,
+};
 
 // candle lib
 use candle_core::{DType, Device, Tensor};
@@ -11,7 +23,7 @@ use candle_nn::VarBuilder;
 use candle_transformers::models::bert::{BertModel, Config};
 use tokenizers::{PaddingParams, Tokenizer};
 
-use base64::{Engine as Base64Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as Base64Engine};
 
 // const INSTANCE_BYTES: &[u8] = include_bytes!("models/model.safetensors");
 const WEIGHTS: &[u8] = include_bytes!("../../models/model.safetensors");
@@ -20,42 +32,47 @@ const TOKENIZER: &[u8] = include_bytes!("../../models/tokenizer.json");
 
 const WASM_PAGE_SIZE: u64 = 65536;
 
-#[wasm_bindgen]
+// #[cfg_attr(not(test), wasm_bindgen)]
+// #[wasm_bindgen]
 pub struct EmbeddingModel {
     bert: BertModel,
     tokenizer: Tokenizer,
 }
-#[wasm_bindgen]
+// #[wasm_bindgen]
 impl EmbeddingModel {
-    #[wasm_bindgen(constructor)]
-    pub fn new() -> Result<EmbeddingModel, JsError> {
-
+    // #[wasm_bindgen(constructor)]
+    pub fn new() -> Result<EmbeddingModel> {
         console_error_panic_hook::set_once();
         // console_log!("loading model");
         let device = &Device::Cpu;
-        let vb = VarBuilder::from_buffered_safetensors(WEIGHTS.to_vec(), DType::F32, device)?;
+        debug!("device: {:?}", device);
+        let vb = VarBuilder::from_slice_safetensors(WEIGHTS, DType::F32, device)?;
+        debug!("load model weights");
         let config: Config = serde_json::from_slice(CONFIG)?;
-        let tokenizer =
-            Tokenizer::from_bytes(TOKENIZER).map_err(|m| JsError::new(&m.to_string()))?;
+        // let tokenizer =
+        //     Tokenizer::from_bytes(TOKENIZER).map_err(|m| JsError::new(&m.to_string()))?;
+        debug!("load config");
+        let tokenizer = Tokenizer::from_bytes(TOKENIZER).map_err(|m| Error::msg(m.to_string()))?;
+        debug!("load tokenizer");
         let bert = BertModel::load(vb, &config)?;
+        debug!("load model");
 
-        Ok(Self {
-            bert,
-            tokenizer,
-        })
+        Ok(Self { bert, tokenizer })
     }
 
-    pub fn get_embeddings(&mut self, input: JsValue) -> Result<JsValue, JsError> {
-        let sentences: Vec<String> =
-            serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
-        let embeddings = self._get_embeddings(&sentences, true)?;
+    // pub fn get_embeddings(&mut self, input: JsValue) -> Result<JsValue, JsError> {
+    //     let sentences: Vec<String> =
+    //         serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
+    //     let embeddings = self._get_embeddings(&sentences, true)?;
 
+    //     Ok(serde_wasm_bindgen::to_value(&embeddings)?)
+    // }
 
-        Ok(serde_wasm_bindgen::to_value(&embeddings)?)
-    }
-
-    fn _get_embeddings(&mut self, sentences: &Vec<String>, normalize_embeddings: bool) -> Result<Vec<Vec<f32>>, JsError> {
-
+    fn _get_embeddings(
+        &mut self,
+        sentences: &Vec<String>,
+        normalize_embeddings: bool,
+    ) -> Result<Vec<Vec<f32>>> {
         let device = &Device::Cpu;
         // set padding setting
         if let Some(pp) = self.tokenizer.get_padding_mut() {
@@ -68,12 +85,14 @@ impl EmbeddingModel {
             self.tokenizer.with_padding(Some(pp));
         }
         // set truncation setting TruncationParams
-        let _ = self.tokenizer.with_truncation(Some(tokenizers::TruncationParams::default()));
+        let _ = self
+            .tokenizer
+            .with_truncation(Some(tokenizers::TruncationParams::default()));
 
         let tokens = self
             .tokenizer
             .encode_batch(sentences.to_vec(), true)
-            .map_err(|m| JsError::new(&m.to_string()))?;
+            .map_err(|m| Error::msg(m.to_string()))?;
 
         let token_ids: Vec<Tensor> = tokens
             .iter()
@@ -86,9 +105,7 @@ impl EmbeddingModel {
         let token_ids = Tensor::stack(&token_ids, 0)?;
         let token_type_ids = token_ids.zeros_like()?;
         // console_log!("running inference on batch {:?}", token_ids.shape());
-        let embeddings = self
-            .bert
-            .forward(&token_ids, &token_type_ids)?;
+        let embeddings = self.bert.forward(&token_ids, &token_type_ids)?;
         // console_log!("generated embeddings {:?}", embeddings.shape());
         // Apply some avg-pooling by taking the mean embedding value for all tokens (including padding)
         let (_n_sentence, n_tokens, _hidden_size) = embeddings.dims3()?;
@@ -104,14 +121,13 @@ impl EmbeddingModel {
 }
 
 struct ICMemory {
-//   mem: Vec<u8>,
     mem: RefCell<Vec<u8>>,
 }
 
 impl Memory for ICMemory {
     fn size(&self) -> u64 {
         let mem_len = self.mem.borrow().len() as u64;
-        (mem_len * WASM_PAGE_SIZE - 1) / WASM_PAGE_SIZE
+        return (mem_len + WASM_PAGE_SIZE - 1) / WASM_PAGE_SIZE;
     }
 
     fn grow(&self, pages: u64) -> i64 {
@@ -121,7 +137,11 @@ impl Memory for ICMemory {
         }
 
         let prev_page_size = current_page_size;
-        self.mem.borrow_mut().extend(vec![0; (pages * WASM_PAGE_SIZE) as usize]);
+        self.mem
+            .borrow_mut()
+            .extend(vec![0; (pages * WASM_PAGE_SIZE) as usize]);
+
+        // println!("{}, {}", prev_page_size, self.size());
         prev_page_size as i64
     }
 
@@ -137,29 +157,33 @@ impl Memory for ICMemory {
 }
 
 pub struct ICRBTree {
-    ic_rbtree: StableBTreeMap<u32, Vec<u8>, ICMemory>
+    ic_rbtree: StableBTreeMap<u32, Vec<u8>, ICMemory>,
 }
 impl ICRBTree {
     pub fn new() -> Self {
-        let ic_rbtree = StableBTreeMap::new(ICMemory {mem: RefCell::new(vec![])});
-        Self {
-            ic_rbtree,
-        }
+        let ic_rbtree = StableBTreeMap::new(ICMemory {
+            mem: RefCell::new(vec![]),
+        });
+        Self { ic_rbtree }
     }
 
     pub fn insert(&mut self, key: u32, value: Vec<u8>) -> Option<Vec<u8>> {
         self.ic_rbtree.insert(key, value)
     }
 
+    pub fn get(&mut self, key: u32) -> Option<Vec<u8>> {
+        self.ic_rbtree.get(&key)
+    }
+
     pub fn build_from_vec_u8(items: Vec<Vec<u8>>) -> Self {
-        let mut ic_rbtree = StableBTreeMap::new(ICMemory {mem: RefCell::new(vec![])});
+        let mut ic_rbtree = StableBTreeMap::new(ICMemory {
+            mem: RefCell::new(vec![]),
+        });
         for (index, item) in items.into_iter().enumerate() {
             let _ = ic_rbtree.insert(index.try_into().unwrap(), item);
         }
 
-        Self {
-            ic_rbtree,
-        }
+        Self { ic_rbtree }
     }
 
     pub fn into_memory(self) -> Vec<u8> {
@@ -203,29 +227,76 @@ impl StorageTrait for Storage {
     }
 
     fn sector_byte_size(&self) -> usize {
-        todo!()
+        0
     }
 }
 
 struct VectorReader {
-    vectors: Vec<Vec<f32>>
+    vectors: Vec<Vec<f32>>,
 }
 
 impl OriginalVectorReaderTrait<f32> for VectorReader {
     fn read(&self, index: &usize) -> Result<Vec<f32>> {
         Ok(self.vectors[*index].clone())
     }
-
     fn read_with_range(&mut self, _start: &usize, _end: &usize) -> Result<Vec<Vec<f32>>> {
         todo!()
     }
-
     fn get_num_vectors(&self) -> usize {
         self.vectors.len()
     }
-
     fn get_vector_dim(&self) -> usize {
         self.vectors[0].len()
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct Point(Vec<f32>);
+
+impl PointInterface for Point {
+    fn distance(&self, other: &Self) -> f32 {
+        self.0
+            .iter()
+            .zip(other.0.iter())
+            .map(|(a, b)| {
+                let c = a - b;
+                c * c
+            })
+            .sum::<f32>()
+            .sqrt()
+    }
+
+    fn dim() -> u32 {
+        384
+    }
+
+    fn add(&self, other: &Self) -> Self {
+        Point::from_f32_vec(
+            self.to_f32_vec()
+                .into_iter()
+                .zip(other.to_f32_vec())
+                .map(|(x, y)| x + y)
+                .collect(),
+        )
+    }
+    fn div(&self, divisor: &usize) -> Self {
+        Point::from_f32_vec(
+            self.to_f32_vec()
+                .into_iter()
+                .map(|v| v / *divisor as f32)
+                .collect(),
+        )
+    }
+
+    fn zero() -> Self {
+        Point::from_f32_vec(vec![0.0; Point::dim() as usize])
+    }
+
+    fn to_f32_vec(&self) -> Vec<f32> {
+        self.0.iter().copied().collect()
+    }
+    fn from_f32_vec(a: Vec<f32>) -> Self {
+        Point(a.into_iter().collect())
     }
 }
 
@@ -246,74 +317,119 @@ pub struct Vectune {
 impl Vectune {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
+        Vectune::_new()
+    }
 
+    fn _new() -> Self {
         let dim = 384;
         let degree = 90;
         let seed: u64 = 0123456789;
 
-        Self {
-            dim,
-            degree,
-            seed
-        }
+        Self { dim, degree, seed }
     }
 
-    pub fn build(&mut self, input: JsValue) -> Result<Vec<u8>, JsError> {
+    pub fn build(&mut self, input: JsValue) -> Result<JsValue, JsError> {
+        let items: Items =
+            serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
+
+        Ok(serde_wasm_bindgen::to_value(
+            &self
+                ._build(items)
+                .map_err(|m| JsError::new(&m.to_string()))?,
+        )?)
+    }
+
+    fn _build(&mut self, items: Items) -> Result<Vec<u8>> {
         let mut bert = EmbeddingModel::new()?;
         let mut data_map = ICRBTree::new();
-        let items: Items = serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
-        
-        let vectors: Vec<Vec<f32>> = items.into_iter().enumerate().map(|(index, item)| {
 
-            // Insert data to ic-rbtree
-            let index: u32 = index.try_into().unwrap();
-            let _ = data_map.insert(index, item.text.clone().into_bytes());
+        let vectors: Vec<Vec<f32>> = items
+            .into_iter()
+            .enumerate()
+            .map(|(index, item)| {
+                // Insert data to ic-rbtree
+                let index: u32 = index.try_into().unwrap();
+                let _ = data_map.insert(index, item.text.clone().into_bytes());
 
-            // Vectorize text if embeddings is null
-            if let Some(embeddings) = item.embeddings {
-                if let Ok(bytes) = general_purpose::STANDARD.decode(embeddings) {
-                    if let Ok(slice) = bytemuck::try_cast_slice(&bytes) {
-                        let vector: Vec<f32> = slice.to_vec();
-                        return Ok(vector);
+                // Vectorize text if embeddings is null
+                if let Some(embeddings) = item.embeddings {
+                    if let Ok(bytes) = general_purpose::STANDARD.decode(embeddings) {
+                        if let Ok(slice) = bytemuck::try_cast_slice(&bytes) {
+                            let vector: Vec<f32> = slice.to_vec();
+                            return Ok(vector);
+                        }
                     }
                 }
-            }
-            // todo: use batch embedding
-            match bert._get_embeddings(&vec![item.text], true) {
-                Ok(embeddings) => Ok(embeddings[0].clone()),
-                Err(err) => Err(err),
-            }
+                println!("index: {}", index);
 
-        })
-        .collect::<Result<Vec<Vec<f32>>, _>>()?;
+                // todo: use batch embedding
+                match bert._get_embeddings(&vec![item.text], true) {
+                    Ok(embeddings) => Ok(embeddings[0].clone()),
+                    Err(err) => Err(err),
+                }
 
+            })
+            .collect::<Result<Vec<Vec<f32>>, _>>()?;
+
+
+        println!("finish embedding");
 
         let file_byte_size = ssd_vectune::utils::node_byte_size(self.dim) * vectors.len();
         let storage = Storage::new(file_byte_size.try_into().unwrap());
         let graph_on_storage = GraphStore::new(vectors.len(), self.dim, self.degree, storage);
-        let vector_reader = VectorReader {
-            vectors
-        };
+        // let vector_reader = VectorReader { vectors };
 
         /*
-        
+
         wip:
         vectorsを呼び出し元のjsにJSONとして渡す。
         */
 
-        let (medoid_index, backlinks) = ssd_vectune::single_index::single_index(&vector_reader, &graph_on_storage, self.seed);
+        // let (medoid_index, backlinks) =
+        //     ssd_vectune::single_index::single_index(&vector_reader, &graph_on_storage, self.seed);
+        let (indexed_points, medoid_index, backlinks): (Vec<(Point, Vec<u32>)>, u32, Vec<Vec<u32>>) =
+            vectune::Builder::default()
+                .set_seed(self.seed)
+                .set_a(2.0)
+                // .set_r(3)
+                // .progress(ProgressBar::new(1000))
+                .build(vectors.into_iter().map(|vector| Point::from_f32_vec(vector)).collect());
 
-        Ok(Vectune::serialize(data_map, graph_on_storage, backlinks, medoid_index))
+        indexed_points
+                .into_iter()
+                .enumerate()
+                .for_each(|(node_id, (point, edges))| {
+                    graph_on_storage
+                        .write_node(&(node_id as u32), &point.to_f32_vec(), &edges)
+                        .unwrap();
+                });
+
+        Ok(Vectune::serialize(
+            data_map,
+            graph_on_storage,
+            backlinks,
+            medoid_index,
+        ))
     }
 
-    fn serialize(data_map: ICRBTree, graph_on_storage: GraphStore<Storage>, backlinks: Vec<Vec<u32>>, medoid_index: u32) -> Vec<u8> {
-
+    fn serialize(
+        data_map: ICRBTree,
+        graph_on_storage: GraphStore<Storage>,
+        backlinks: Vec<Vec<u32>>,
+        medoid_index: u32,
+    ) -> Vec<u8> {
         // data map
         let serialized_data_map = data_map.into_memory();
         // graph
         let serialized_graph_store = graph_on_storage.into_storage().into_memory();
         // backlinks
-        let serialized_backlinks_map: Vec<u8> = ICRBTree::build_from_vec_u8(backlinks.into_iter().map(|links| bytemuck::cast_slice(&links).to_vec()).collect()).into_memory();
+        let serialized_backlinks_map: Vec<u8> = ICRBTree::build_from_vec_u8(
+            backlinks
+                .into_iter()
+                .map(|links| bytemuck::cast_slice(&links).to_vec())
+                .collect(),
+        )
+        .into_memory();
 
         // header
         /*
@@ -328,12 +444,70 @@ impl Vectune {
         bytes.extend(serialized_graph_store);
         bytes.extend(serialized_backlinks_map);
 
-
-
         bytes
     }
 }
 
 fn main() {
-  console_error_panic_hook::set_once();
+    console_error_panic_hook::set_once();
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use rand::Rng;
+
+    fn generate_random_string(length: usize) -> String {
+        const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+                                abcdefghijklmnopqrstuvwxyz\
+                                0123456789";
+        let mut rng = rand::thread_rng();
+
+        let random_string: String = (0..length)
+            .map(|_| {
+                let idx = rng.gen_range(0..CHARSET.len());
+                CHARSET[idx] as char
+            })
+            .collect();
+
+        random_string
+    }
+
+    #[test]
+    fn ic_rbtree() {
+        let mut map = ICRBTree::new();
+
+        for i in 0..1000 as u32 {
+            map.insert(i, generate_random_string(999).into_bytes());
+        }
+
+        let memory = map.into_memory();
+
+        let map = StableBTreeMap::<u32, String, ICMemory>::init(ICMemory {
+            mem: RefCell::new(memory),
+        });
+
+        for i in 0..1000 as u32 {
+            assert!(map.get(&i).is_some())
+        }
+    }
+
+    // #[wasm_bindgen_test]
+    #[test]
+    fn build() {
+        let mut vectune = Vectune::new();
+        let items: Vec<Item> = (0..10).into_iter().map(|_| Item {text: generate_random_string(100), embeddings: None}).collect();
+        let res = vectune._build(items);
+        // println!("{:?}", res);
+        assert!(res.is_ok());
+
+        // match EmbeddingModel::new() {
+        //     Ok(_) => {}
+        //     Err(err) => {
+        //         println!("{:?}", err);
+        //         assert!(false);
+        //     }
+        // }
+    }
 }

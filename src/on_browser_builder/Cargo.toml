@@ -18,7 +18,7 @@ tokenizers = {version = "0.19.1", features = ["unstable_wasm"], default-features
 # anyhow = {version = "1.0.75", features = ["backtrace"]}
 # byteorder = "1.5.0"
 # log = "0.4.20"
-# rand = "0.8.5"
+rand = "0.8.5"
 serde = { version = "1.0.193", features = ["derive"] }
 serde_json = "1.0.108"
 anyhow = "1.0.86"
@@ -33,9 +33,14 @@ gloo = "0.11.0"
 js-sys = "0.3.64"
 wasm-bindgen = "0.2.92"
 serde-wasm-bindgen = "0.6.0"
+wasm-bindgen-test = "0.3"
 
 # IC
 ic-stable-structures = "0.6.5"
 
 ssd-vectune = {path = "../../../ssd-vectune", features = []}
+vectune = {path = "../../../vectune", features = []}
 bytemuck = "1.15.0"
+
+log = "0.4"
+env_logger = "0.9" 
