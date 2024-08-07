@@ -13,7 +13,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 use anyhow::{Error, Result};
 use ic_stable_structures::{BTreeMap as StableBTreeMap, Memory};
 use ssd_vectune::{
-    graph_store::GraphStore, original_vector_reader::OriginalVectorReaderTrait,
+    graph_store::GraphStore,
     storage::StorageTrait,
 };
 
@@ -231,24 +231,24 @@ impl StorageTrait for Storage {
     }
 }
 
-struct VectorReader {
-    vectors: Vec<Vec<f32>>,
-}
+// struct VectorReader {
+//     vectors: Vec<Vec<f32>>,
+// }
 
-impl OriginalVectorReaderTrait<f32> for VectorReader {
-    fn read(&self, index: &usize) -> Result<Vec<f32>> {
-        Ok(self.vectors[*index].clone())
-    }
-    fn read_with_range(&mut self, _start: &usize, _end: &usize) -> Result<Vec<Vec<f32>>> {
-        todo!()
-    }
-    fn get_num_vectors(&self) -> usize {
-        self.vectors.len()
-    }
-    fn get_vector_dim(&self) -> usize {
-        self.vectors[0].len()
-    }
-}
+// impl OriginalVectorReaderTrait<f32> for VectorReader {
+//     fn read(&self, index: &usize) -> Result<Vec<f32>> {
+//         Ok(self.vectors[*index].clone())
+//     }
+//     fn read_with_range(&mut self, _start: &usize, _end: &usize) -> Result<Vec<Vec<f32>>> {
+//         todo!()
+//     }
+//     fn get_num_vectors(&self) -> usize {
+//         self.vectors.len()
+//     }
+//     fn get_vector_dim(&self) -> usize {
+//         self.vectors[0].len()
+//     }
+// }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Point(Vec<f32>);
