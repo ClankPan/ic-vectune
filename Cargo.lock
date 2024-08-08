@@ -674,7 +674,7 @@ dependencies = [
  "hashbrown",
  "lock_api",
  "once_cell",
- "parking_lot_core",
+ "parking_lot_core 0.9.10",
 ]
 
 [[package]]
@@ -1840,8 +1840,8 @@ dependencies = [
  "num-traits",
  "rand",
  "serde",
- "ssd-vectune 0.1.0 (git+https://github.com/ClankPan/ssd-vectune?rev=e7afe56a691f563f461d76e3a663dbaccd2041c2)",
- "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=6210ad5284a632bb0cecae945bd3965df81592e5)",
+ "ssd-vectune 0.1.0 (git+https://github.com/ClankPan/ssd-vectune?rev=918e22e75608ee04acf7dc320889d976baac0652)",
+ "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=8d5145e6d13a5fd8182953d2496c885c4abe476b)",
 ]
 
 [[package]]
@@ -1851,6 +1851,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0242819d153cba4b4b05a5a8f2a7e9bbf97b6055b2a002b395c96b5ff3c0222"
 dependencies = [
  "cfg-if",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -2222,9 +2225,9 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
- "ssd-vectune 0.1.0 (git+https://github.com/ClankPan/ssd-vectune?rev=e7afe56a691f563f461d76e3a663dbaccd2041c2)",
+ "ssd-vectune 0.1.0 (git+https://github.com/ClankPan/ssd-vectune?rev=918e22e75608ee04acf7dc320889d976baac0652)",
  "tokenizers",
- "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=6210ad5284a632bb0cecae945bd3965df81592e5)",
+ "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=8d5145e6d13a5fd8182953d2496c885c4abe476b)",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]
@@ -2285,12 +2288,37 @@ checksum = "bb813b8af86854136c6922af0598d719255ecb2179515e6e7730d468f05c9cae"
 
 [[package]]
 name = "parking_lot"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d17b78036a60663b797adeaee46f5c9dfebb86948d1255007a1d6be0271ff99"
+dependencies = [
+ "instant",
+ "lock_api",
+ "parking_lot_core 0.8.6",
+]
+
+[[package]]
+name = "parking_lot"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bf18183cf54e8d6059647fc3063646a1801cf30896933ec2311622cc4b9a27"
 dependencies = [
  "lock_api",
- "parking_lot_core",
+ "parking_lot_core 0.9.10",
+]
+
+[[package]]
+name = "parking_lot_core"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60a2cfe6f0ad2bfc16aefa463b497d5c7a5ecd44a23efa72aa342d90177356dc"
+dependencies = [
+ "cfg-if",
+ "instant",
+ "libc",
+ "redox_syscall 0.2.16",
+ "smallvec",
+ "winapi",
 ]
 
 [[package]]
@@ -2301,7 +2329,7 @@ checksum = "1e401f977ab385c9e4e3ab30627d6f26d00e2c73eef317493c4ec6d468726cf8"
 dependencies = [
  "cfg-if",
  "libc",
- "redox_syscall",
+ "redox_syscall 0.5.2",
  "smallvec",
  "windows-targets 0.52.5",
 ]
@@ -2636,6 +2664,15 @@ name = "reborrow"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "03251193000f4bd3b042892be858ee50e8b3719f2b08e5833ac4353724632430"
+
+[[package]]
+name = "redox_syscall"
+version = "0.2.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb5a58c1855b4b6819d59012155603f0b22ad30cad752600aadfcb695265519a"
+dependencies = [
+ "bitflags 1.3.2",
+]
 
 [[package]]
 name = "redox_syscall"
@@ -3142,6 +3179,33 @@ dependencies = [
 [[package]]
 name = "ssd-vectune"
 version = "0.1.0"
+source = "git+https://github.com/ClankPan/ssd-vectune?rev=918e22e75608ee04acf7dc320889d976baac0652#918e22e75608ee04acf7dc320889d976baac0652"
+dependencies = [
+ "anyhow",
+ "bit-set",
+ "bit-vec",
+ "bytemuck",
+ "byteorder",
+ "bytesize",
+ "clap",
+ "ext-sort",
+ "indicatif",
+ "itertools 0.13.0",
+ "kd-tree",
+ "memmap2",
+ "ndarray",
+ "parking_lot 0.11.2",
+ "rand",
+ "rayon",
+ "rustc-hash",
+ "serde",
+ "serde_json",
+ "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=8d5145e6d13a5fd8182953d2496c885c4abe476b)",
+]
+
+[[package]]
+name = "ssd-vectune"
+version = "0.1.0"
 source = "git+https://github.com/ClankPan/ssd-vectune?rev=a8e0401ca3ea2b424ba7c9f1d02d5fc985431922#a8e0401ca3ea2b424ba7c9f1d02d5fc985431922"
 dependencies = [
  "anyhow",
@@ -3157,40 +3221,13 @@ dependencies = [
  "kd-tree",
  "memmap2",
  "ndarray",
- "parking_lot",
+ "parking_lot 0.12.3",
  "rand",
  "rayon",
  "rustc-hash",
  "serde",
  "serde_json",
  "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=71b54477b8719ef418342e677f1543a6e3b41909)",
-]
-
-[[package]]
-name = "ssd-vectune"
-version = "0.1.0"
-source = "git+https://github.com/ClankPan/ssd-vectune?rev=e7afe56a691f563f461d76e3a663dbaccd2041c2#e7afe56a691f563f461d76e3a663dbaccd2041c2"
-dependencies = [
- "anyhow",
- "bit-set",
- "bit-vec",
- "bytemuck",
- "byteorder",
- "bytesize",
- "clap",
- "ext-sort",
- "indicatif",
- "itertools 0.13.0",
- "kd-tree",
- "memmap2",
- "ndarray",
- "parking_lot",
- "rand",
- "rayon",
- "rustc-hash",
- "serde",
- "serde_json",
- "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=6210ad5284a632bb0cecae945bd3965df81592e5)",
 ]
 
 [[package]]
@@ -3418,7 +3455,7 @@ dependencies = [
  "libc",
  "mio",
  "num_cpus",
- "parking_lot",
+ "parking_lot 0.12.3",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
@@ -3660,13 +3697,13 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 [[package]]
 name = "vectune"
 version = "0.2.0"
-source = "git+https://github.com/ClankPan/Vectune?rev=6210ad5284a632bb0cecae945bd3965df81592e5#6210ad5284a632bb0cecae945bd3965df81592e5"
+source = "git+https://github.com/ClankPan/Vectune?rev=71b54477b8719ef418342e677f1543a6e3b41909#71b54477b8719ef418342e677f1543a6e3b41909"
 dependencies = [
  "bit-vec",
  "dashmap",
  "indicatif",
  "itertools 0.12.1",
- "parking_lot",
+ "parking_lot 0.12.3",
  "rand",
  "rayon",
  "rustc-hash",
@@ -3677,13 +3714,13 @@ dependencies = [
 [[package]]
 name = "vectune"
 version = "0.2.0"
-source = "git+https://github.com/ClankPan/Vectune?rev=71b54477b8719ef418342e677f1543a6e3b41909#71b54477b8719ef418342e677f1543a6e3b41909"
+source = "git+https://github.com/ClankPan/Vectune?rev=8d5145e6d13a5fd8182953d2496c885c4abe476b#8d5145e6d13a5fd8182953d2496c885c4abe476b"
 dependencies = [
  "bit-vec",
  "dashmap",
  "indicatif",
  "itertools 0.12.1",
- "parking_lot",
+ "parking_lot 0.11.2",
  "rand",
  "rayon",
  "rustc-hash",
