@@ -202,16 +202,24 @@ async fn start_running() {
 
 #[update(guard = "is_owner")]
 async fn reset() {
-    // assert_owner().await;
-    todo!();
 
-    // METADATA.with(|metadata| {
-    //     let mut metadata = metadata.borrow_mut();
-    //     let Metadata::Running(running_metadata) = &mut *metadata.get() else {
-    //         trap("Metadata is not Running")
-    //     };
+    METADATA.with(|metadata| {
+        let mut metadata = metadata.borrow_mut();
 
-    // })
+        let new_metaadta = match metadata.get() {
+            Metadata::None => panic!("unexpected path"),
+            Metadata::Initial(_) => {return},
+            Metadata::Loading(loading_metadata) => {
+                Metadata::Initial(InitialMetadata{name: loading_metadata.name.clone(), version: loading_metadata.version.clone()})
+            },
+            Metadata::Running(running_metadata) => {
+                Metadata::Initial(InitialMetadata{name: running_metadata.name.clone(), version: running_metadata.version.clone()})
+            },
+        };
+
+        let _ = metadata.set(new_metaadta);
+
+    })
 }
 
 #[query(guard = "is_owner")]

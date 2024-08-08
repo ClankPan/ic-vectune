@@ -425,6 +425,10 @@ impl Vectune {
         backlinks: Vec<Vec<u32>>,
         medoid_index: u32,
     ) -> Vec<u8> {
+        let num_vectors = graph_on_storage.num_vectors() as u32;
+        let vector_dim = graph_on_storage.vector_dim() as u32;
+        let edge_degrees = graph_on_storage.edge_max_degree() as u32;
+
         // data map
         let serialized_data_map = data_map.into_memory();
         // graph
@@ -438,15 +442,25 @@ impl Vectune {
         )
         .into_memory();
 
-        // header
+       
         /*
-        |data_map_len: u64|graph_store_len: u64|backlinks_map_len: u64|medoid_index: u32|
+        header
+        |data_map_len: u64|graph_store_len: u64|backlinks_map_len: u64|medoid_index: u32|num_vectors: u32|vector_dim: u32|edge_degrees: u32|
+
+        body
+        |serialized_data_map|serialized_graph_store|serialized_backlinks_map|
         */
+        
         let mut bytes = vec![];
+        // header
         bytes.extend((serialized_data_map.len() as u64).to_le_bytes());
         bytes.extend((serialized_graph_store.len() as u64).to_le_bytes());
         bytes.extend((serialized_backlinks_map.len() as u64).to_le_bytes());
         bytes.extend(medoid_index.to_le_bytes());
+        bytes.extend(num_vectors.to_le_bytes());
+        bytes.extend(vector_dim.to_le_bytes());
+        bytes.extend(edge_degrees.to_le_bytes());
+        // body
         bytes.extend(serialized_data_map);
         bytes.extend(serialized_graph_store);
         bytes.extend(serialized_backlinks_map);
