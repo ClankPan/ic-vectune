@@ -453,13 +453,13 @@ impl Vectune {
         
         let mut bytes = vec![];
         // header
-        bytes.extend((serialized_data_map.len() as u64).to_le_bytes());
-        bytes.extend((serialized_graph_store.len() as u64).to_le_bytes());
-        bytes.extend((serialized_backlinks_map.len() as u64).to_le_bytes());
-        bytes.extend(medoid_index.to_le_bytes());
-        bytes.extend(num_vectors.to_le_bytes());
-        bytes.extend(vector_dim.to_le_bytes());
-        bytes.extend(edge_degrees.to_le_bytes());
+        bytes.extend((serialized_data_map.len() as u64).to_le_bytes()); // 0-8
+        bytes.extend((serialized_graph_store.len() as u64).to_le_bytes()); // 8-16
+        bytes.extend((serialized_backlinks_map.len() as u64).to_le_bytes()); // 16-24
+        bytes.extend(medoid_index.to_le_bytes()); // 24-28
+        bytes.extend(num_vectors.to_le_bytes()); // 28-32
+        bytes.extend(vector_dim.to_le_bytes()); // 32-36
+        bytes.extend(edge_degrees.to_le_bytes()); // 36-40
         // body
         bytes.extend(serialized_data_map);
         bytes.extend(serialized_graph_store);
