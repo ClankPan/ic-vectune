@@ -9,20 +9,15 @@ candle-nn = "0.6.0"
 candle-transformers = "0.6.0"
 num-traits = "0.2.17"
 tokenizers = {version = "0.19.1", features = ["unstable_wasm"], default-features = false}
-# instant-distance = {version = "0.6.1",  features = ["with-serde"], package = "instant-distance"}
 
 # [lib]
 # crate-type = ["cdylib"]
 
-# App crates.
-# anyhow = {version = "1.0.75", features = ["backtrace"]}
-# byteorder = "1.5.0"
-# log = "0.4.20"
+
 rand = "0.8.5"
 serde = { version = "1.0.193", features = ["derive"] }
 serde_json = "1.0.108"
 anyhow = "1.0.86"
-# safetensors = "0.4.1"
 
 base64 = "0.22.1"
 
@@ -38,8 +33,11 @@ wasm-bindgen-test = "0.3"
 # IC
 ic-stable-structures = "0.6.5"
 
-ssd-vectune = {path = "../../../ssd-vectune", features = []}
-vectune = {path = "../../../vectune", features = []}
+# ssd-vectune = {path = "../../../ssd-vectune", features = []}
+# vectune = {path = "../../../vectune", features = []}
+vectune = {git = "https://github.com/ClankPan/Vectune", rev = "6210ad5284a632bb0cecae945bd3965df81592e5", features = []}
+ssd-vectune = {git = "https://github.com/ClankPan/ssd-vectune", rev = "e7afe56a691f563f461d76e3a663dbaccd2041c2", features = []}
+
 bytemuck = "1.15.0"
 
 log = "0.4"

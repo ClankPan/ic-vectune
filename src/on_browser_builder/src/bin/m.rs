@@ -309,8 +309,8 @@ impl StorageTrait for Storage {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Item {
-    text: String,
-    embeddings: Option<String>,
+    sentence: String,
+    embedding: Option<String>,
 }
 type Items = Vec<Item>;
 
@@ -356,10 +356,10 @@ impl Vectune {
             .map(|(index, item)| {
                 // Insert data to ic-rbtree
                 let index: u32 = index.try_into().unwrap();
-                let _ = data_map.insert(index, item.text.clone().into_bytes());
+                let _ = data_map.insert(index, item.sentence.clone().into_bytes());
 
                 // Vectorize text if embeddings is null
-                if let Some(embeddings) = item.embeddings {
+                if let Some(embeddings) = item.embedding {
                     if let Ok(bytes) = general_purpose::STANDARD.decode(embeddings) {
                         if let Ok(slice) = bytemuck::try_cast_slice(&bytes) {
                             let vector: Vec<f32> = slice.to_vec();
@@ -370,7 +370,7 @@ impl Vectune {
                 println!("index: {}", index);
 
                 // todo: use batch embedding
-                match bert._get_embeddings(&vec![item.text], true) {
+                match bert._get_embeddings(&vec![item.sentence], true) {
                     Ok(embeddings) => Ok(embeddings[0].clone()),
                     Err(err) => Err(err),
                 }
@@ -504,7 +504,7 @@ mod tests {
     #[test]
     fn build() {
         let mut vectune = Vectune::new();
-        let items: Vec<Item> = (0..10).into_iter().map(|_| Item {text: generate_random_string(100), embeddings: None}).collect();
+        let items: Vec<Item> = (0..10).into_iter().map(|_| Item {sentence: generate_random_string(100), embedding: None}).collect();
         let res = vectune._build(items);
         // println!("{:?}", res);
         assert!(res.is_ok());
