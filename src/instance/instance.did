@@ -10,16 +10,6 @@ type DbMetadata = record {
   db_key : text;
   is_complete_source_chunks : bool;
 };
-type IcStatus = record {
-  freezing_threshold : nat;
-  controllers : vec text;
-  memory_size : nat;
-  cycles : nat;
-  idle_cycles_burned_per_day : nat;
-  module_hash : opt blob;
-  memory_allocation : nat;
-  compute_allocation : nat;
-};
 type StatusForFrontend = record {
   freezing_threshold : nat;
   controllers : vec text;
@@ -42,7 +32,7 @@ service : (record { principal; text; text }) -> {
   get_current_status : () -> (StatusForFrontend);
   get_metadata : () -> (DbMetadata) query;
   get_name : () -> (text) query;
-  get_prev_status : () -> (IcStatus) query;
+  get_prev_status : () -> (StatusForFrontend) query;
   greet : (text) -> (text) query;
   missing_chunks : (nat64, ChunkType) -> (opt blob) query;
   reset : () -> ();

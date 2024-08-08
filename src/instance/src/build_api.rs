@@ -215,8 +215,32 @@ async fn reset() {
 }
 
 #[query(guard = "is_owner")]
-fn get_prev_status() -> IcStatus {
-    IcStatus::get()
+fn get_prev_status() -> StatusForFrontend {
+    let status = IcStatus::get();
+    let name = Metadata::get_name();
+    let version = Metadata::get_version();
+    let db_key = match Metadata::get_db_key() {
+        Ok(key) => key,
+        Err(_) => String::new(),
+    };
+
+    StatusForFrontend {
+        controllers: status.controllers,
+        compute_allocation: status.compute_allocation,
+        memory_allocation: status.memory_allocation,
+        freezing_threshold: status.freezing_threshold,
+        module_hash: status.module_hash,
+        memory_size: status.memory_size,
+        cycles: status.cycles,
+        idle_cycles_burned_per_day: status.idle_cycles_burned_per_day,
+      
+        // For DB
+        db_key,
+        hnsw_chunk_len: 0,
+        source_chunk_len: 0,
+        name,
+        version,
+    }
 }
 
 #[query]
