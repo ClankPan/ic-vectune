@@ -1840,8 +1840,8 @@ dependencies = [
  "num-traits",
  "rand",
  "serde",
- "ssd-vectune 0.1.0 (git+https://github.com/ClankPan/ssd-vectune?rev=918e22e75608ee04acf7dc320889d976baac0652)",
- "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=8d5145e6d13a5fd8182953d2496c885c4abe476b)",
+ "ssd-vectune 0.1.0 (git+https://github.com/ClankPan/ssd-vectune?rev=5f9f6e3ff624ede7878d38102c04afd2ff1ed58d)",
+ "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=fe3a54c65efba6838c65366e33e0a914bda81c15)",
 ]
 
 [[package]]
@@ -2225,9 +2225,9 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
- "ssd-vectune 0.1.0 (git+https://github.com/ClankPan/ssd-vectune?rev=918e22e75608ee04acf7dc320889d976baac0652)",
+ "ssd-vectune 0.1.0 (git+https://github.com/ClankPan/ssd-vectune?rev=5f9f6e3ff624ede7878d38102c04afd2ff1ed58d)",
  "tokenizers",
- "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=8d5145e6d13a5fd8182953d2496c885c4abe476b)",
+ "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=fe3a54c65efba6838c65366e33e0a914bda81c15)",
  "wasm-bindgen",
  "wasm-bindgen-test",
 ]
@@ -3179,7 +3179,7 @@ dependencies = [
 [[package]]
 name = "ssd-vectune"
 version = "0.1.0"
-source = "git+https://github.com/ClankPan/ssd-vectune?rev=918e22e75608ee04acf7dc320889d976baac0652#918e22e75608ee04acf7dc320889d976baac0652"
+source = "git+https://github.com/ClankPan/ssd-vectune?rev=5f9f6e3ff624ede7878d38102c04afd2ff1ed58d#5f9f6e3ff624ede7878d38102c04afd2ff1ed58d"
 dependencies = [
  "anyhow",
  "bit-set",
@@ -3200,7 +3200,7 @@ dependencies = [
  "rustc-hash",
  "serde",
  "serde_json",
- "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=8d5145e6d13a5fd8182953d2496c885c4abe476b)",
+ "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=fe3a54c65efba6838c65366e33e0a914bda81c15)",
 ]
 
 [[package]]
@@ -3714,7 +3714,7 @@ dependencies = [
 [[package]]
 name = "vectune"
 version = "0.2.0"
-source = "git+https://github.com/ClankPan/Vectune?rev=8d5145e6d13a5fd8182953d2496c885c4abe476b#8d5145e6d13a5fd8182953d2496c885c4abe476b"
+source = "git+https://github.com/ClankPan/Vectune?rev=fe3a54c65efba6838c65366e33e0a914bda81c15#fe3a54c65efba6838c65366e33e0a914bda81c15"
 dependencies = [
  "bit-vec",
  "dashmap",

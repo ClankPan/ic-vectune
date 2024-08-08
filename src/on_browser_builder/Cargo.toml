@@ -35,8 +35,8 @@ ic-stable-structures = "0.6.5"
 
 # ssd-vectune = {path = "../../../ssd-vectune", features = []}
 # vectune = {path = "../../../vectune", features = []}
-vectune = {git = "https://github.com/ClankPan/Vectune", rev = "8d5145e6d13a5fd8182953d2496c885c4abe476b", features = ["wasm-bindgen"]}
-ssd-vectune = {git = "https://github.com/ClankPan/ssd-vectune", rev = "918e22e75608ee04acf7dc320889d976baac0652", features = ["wasm-bindgen"]}
+vectune = {git = "https://github.com/ClankPan/Vectune", rev = "fe3a54c65efba6838c65366e33e0a914bda81c15", features = ["wasm-bindgen"]}
+ssd-vectune = {git = "https://github.com/ClankPan/ssd-vectune", rev = "5f9f6e3ff624ede7878d38102c04afd2ff1ed58d", features = ["wasm-bindgen"]}
 
 bytemuck = "1.15.0"
 
