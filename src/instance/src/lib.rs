@@ -8,7 +8,10 @@ mod sysytem_api;
 mod thread_locals;
 pub mod types;
 
+pub mod point;
+
 use candid::Principal;
+use build_api::StatusForFrontend;
 
 // use simd_point::Point as SIMDPoint;
 

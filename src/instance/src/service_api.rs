@@ -1,10 +1,22 @@
 use ic_cdk::{query, trap};
 use ic_stable_structures::memory_manager::MemoryId;
 use ssd_vectune::graph::UnorderedGraph;
-use ssd_vectune::{graph_store::GraphStore, point::Point};
+use ssd_vectune::graph_store::GraphStore;
 use vectune::PointInterface;
 
 use crate::{consts::*, thread_locals::*, types::*};
+
+
+use crate::point::Point;
+
+/*
+
+
+wip
+
+距離はcos simに変更する
+
+*/
 
 #[query]
 fn search(query_vector: Vec<f32>, top_k: u64, size_l: u64) -> Vec<(f32, u32)> {

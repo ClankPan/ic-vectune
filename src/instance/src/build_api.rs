@@ -282,8 +282,34 @@ fn get_metadata() -> DbMetadata {
     }
 }
 
+#[derive(candid::CandidType, candid::Deserialize, Clone)]
+pub struct StatusForFrontend {
+    controllers: Vec<String>,
+    /// Compute allocation.
+    compute_allocation: u128,
+    /// Memory allocation.
+    memory_allocation: u128,
+    /// Freezing threshold.
+    freezing_threshold: u128,
+    /// A SHA256 hash of the module installed on the canister. This is null if the canister is empty.
+    module_hash: Option<Vec<u8>>,
+    /// The memory size taken by the canister.
+    memory_size: u128,
+    /// The cycle balance of the canister.
+    cycles: u128,
+    /// Amount of cycles burned per day.
+    idle_cycles_burned_per_day: u128,
+  
+    // For DB
+    db_key: String,
+    hnsw_chunk_len: u32,
+    source_chunk_len: u32,
+    name: String,
+    version: String,
+}
+
 #[update(guard = "is_owner")]
-async fn get_current_status() -> IcStatus {
+async fn get_current_status() -> StatusForFrontend {
     let status_row: CanisterStatusResponse =
         ic_cdk::api::management_canister::main::canister_status(CanisterIdRecord {
             canister_id: ic_cdk::id(),
@@ -294,5 +320,29 @@ async fn get_current_status() -> IcStatus {
 
     let status = IcStatus::new(status_row);
     IcStatus::update(&status);
-    status
+
+    let name = Metadata::get_name();
+    let version = Metadata::get_version();
+    let db_key = match Metadata::get_db_key() {
+        Ok(key) => key,
+        Err(_) => String::new(),
+    };
+
+    StatusForFrontend {
+        controllers: status.controllers,
+        compute_allocation: status.compute_allocation,
+        memory_allocation: status.memory_allocation,
+        freezing_threshold: status.freezing_threshold,
+        module_hash: status.module_hash,
+        memory_size: status.memory_size,
+        cycles: status.cycles,
+        idle_cycles_burned_per_day: status.idle_cycles_burned_per_day,
+      
+        // For DB
+        db_key,
+        hnsw_chunk_len: 0,
+        source_chunk_len: 0,
+        name,
+        version,
+    }
 }

@@ -20,11 +20,26 @@ type IcStatus = record {
   memory_allocation : nat;
   compute_allocation : nat;
 };
+type StatusForFrontend = record {
+  freezing_threshold : nat;
+  controllers : vec text;
+  memory_size : nat;
+  name : text;
+  source_chunk_len : nat32;
+  version : text;
+  hnsw_chunk_len : nat32;
+  cycles : nat;
+  idle_cycles_burned_per_day : nat;
+  db_key : text;
+  module_hash : opt blob;
+  memory_allocation : nat;
+  compute_allocation : nat;
+};
 service : (record { principal; text; text }) -> {
   add_new_owner : (principal) -> ();
   change_name : (text) -> ();
   commit : () -> ();
-  get_current_status : () -> (IcStatus);
+  get_current_status : () -> (StatusForFrontend);
   get_metadata : () -> (DbMetadata) query;
   get_name : () -> (text) query;
   get_prev_status : () -> (IcStatus) query;

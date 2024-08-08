@@ -6,6 +6,7 @@ use std::{
 use log::debug;
 
 use vectune::PointInterface;
+// use vectune::PointInterface;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_test::wasm_bindgen_test_configure;
 wasm_bindgen_test_configure!(run_in_browser);
@@ -24,6 +25,8 @@ use candle_transformers::models::bert::{BertModel, Config};
 use tokenizers::{PaddingParams, Tokenizer};
 
 use base64::{engine::general_purpose, Engine as Base64Engine};
+
+use on_browser_builder::points::Point;
 
 // const INSTANCE_BYTES: &[u8] = include_bytes!("models/model.safetensors");
 const WEIGHTS: &[u8] = include_bytes!("../../models/model.safetensors");
@@ -250,55 +253,59 @@ impl StorageTrait for Storage {
 //     }
 // }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-pub struct Point(Vec<f32>);
 
-impl PointInterface for Point {
-    fn distance(&self, other: &Self) -> f32 {
-        self.0
-            .iter()
-            .zip(other.0.iter())
-            .map(|(a, b)| {
-                let c = a - b;
-                c * c
-            })
-            .sum::<f32>()
-            .sqrt()
-    }
 
-    fn dim() -> u32 {
-        384
-    }
+// #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+// pub struct Point(Vec<f32>);
 
-    fn add(&self, other: &Self) -> Self {
-        Point::from_f32_vec(
-            self.to_f32_vec()
-                .into_iter()
-                .zip(other.to_f32_vec())
-                .map(|(x, y)| x + y)
-                .collect(),
-        )
-    }
-    fn div(&self, divisor: &usize) -> Self {
-        Point::from_f32_vec(
-            self.to_f32_vec()
-                .into_iter()
-                .map(|v| v / *divisor as f32)
-                .collect(),
-        )
-    }
+// impl PointInterface for Point {
+//     fn distance(&self, other: &Self) -> f32 {
+//         // self.0
+//         //     .iter()
+//         //     .zip(other.0.iter())
+//         //     .map(|(a, b)| {
+//         //         let c = a - b;
+//         //         c * c
+//         //     })
+//         //     .sum::<f32>()
+//         //     .sqrt()
+        
+//         todo!("cons sim")
+//     }
 
-    fn zero() -> Self {
-        Point::from_f32_vec(vec![0.0; Point::dim() as usize])
-    }
+//     fn dim() -> u32 {
+//         384
+//     }
 
-    fn to_f32_vec(&self) -> Vec<f32> {
-        self.0.iter().copied().collect()
-    }
-    fn from_f32_vec(a: Vec<f32>) -> Self {
-        Point(a.into_iter().collect())
-    }
-}
+//     fn add(&self, other: &Self) -> Self {
+//         Point::from_f32_vec(
+//             self.to_f32_vec()
+//                 .into_iter()
+//                 .zip(other.to_f32_vec())
+//                 .map(|(x, y)| x + y)
+//                 .collect(),
+//         )
+//     }
+//     fn div(&self, divisor: &usize) -> Self {
+//         Point::from_f32_vec(
+//             self.to_f32_vec()
+//                 .into_iter()
+//                 .map(|v| v / *divisor as f32)
+//                 .collect(),
+//         )
+//     }
+
+//     fn zero() -> Self {
+//         Point::from_f32_vec(vec![0.0; Point::dim() as usize])
+//     }
+
+//     fn to_f32_vec(&self) -> Vec<f32> {
+//         self.0.iter().copied().collect()
+//     }
+//     fn from_f32_vec(a: Vec<f32>) -> Self {
+//         Point(a.into_iter().collect())
+//     }
+// }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Item {

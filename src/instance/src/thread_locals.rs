@@ -27,7 +27,7 @@ thread_local! {
       ).unwrap()
   );
 
-  pub static SOURCE_DATA: RefCell<StableBTreeMap<String, String, VMemory>> = RefCell::new(
+  pub static SOURCE_DATA: RefCell<StableBTreeMap<String, Vec<u8>, VMemory>> = RefCell::new(
     StableBTreeMap::init(
       MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(DATA_MAP_MEMORY_ID))),
     )
