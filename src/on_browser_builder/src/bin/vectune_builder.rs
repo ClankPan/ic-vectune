@@ -29,6 +29,7 @@ use tokenizers::{PaddingParams, Tokenizer};
 use base64::{engine::general_purpose, Engine as Base64Engine};
 
 use on_browser_builder::points::Point;
+use on_browser_builder::console_log;
 
 // const INSTANCE_BYTES: &[u8] = include_bytes!("models/model.safetensors");
 const WEIGHTS: &[u8] = include_bytes!("../../models/model.safetensors");
@@ -403,7 +404,7 @@ impl Vectune {
 #[wasm_bindgen]
 pub fn extract_false_indices_from_serialized_bitvec(input: JsValue) -> Result<JsValue, JsError> {
     let bytes: Vec<u8> = serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
-    let bitvec: BitVec<u8, Lsb0> = bincode::deserialize(&bytes).unwrap();
+    let bitvec: BitVec<u8, Lsb0> = bincode::deserialize(&bytes)?;
 
     let indices: Vec<usize> = bitvec
         .into_iter()

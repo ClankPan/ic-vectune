@@ -1840,7 +1840,9 @@ dependencies = [
  "num-traits",
  "rand",
  "serde",
+ "serde_json",
  "ssd-vectune 0.1.0 (git+https://github.com/ClankPan/ssd-vectune?rev=0c5ae4614a639f7a83765ca08916036a5f5a357c)",
+ "url",
  "vectune 0.2.0 (git+https://github.com/ClankPan/Vectune?rev=d785917e973dbb011992ed3ee98406c707d7ca80)",
 ]
 

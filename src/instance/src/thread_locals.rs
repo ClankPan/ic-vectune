@@ -27,7 +27,7 @@ thread_local! {
       ).unwrap()
   );
 
-  pub static SOURCE_DATA: RefCell<StableBTreeMap<String, Vec<u8>, VMemory>> = RefCell::new(
+  pub static SOURCE_DATA: RefCell<StableBTreeMap<u32, Vec<u8>, VMemory>> = RefCell::new(
     StableBTreeMap::init(
       MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(DATA_MAP_MEMORY_ID))),
     )
@@ -47,7 +47,7 @@ thread_local! {
     StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(IC_STATUS_MEMORY_ID))))
   );
 
-  pub static BACKLINKS_MAP: RefCell<StableBTreeMap<u8, IcStatus, VMemory>> = RefCell::new(
+  pub static BACKLINKS_MAP: RefCell<StableBTreeMap<u32, Vec<u8>, VMemory>> = RefCell::new(
     StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(BACKLINKS_MEMORY_ID))))
   );
 }

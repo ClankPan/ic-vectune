@@ -279,3 +279,30 @@ pub enum ChunkType {
     DataMap,
     BacklinksMap
 }
+
+
+type HeaderField = ( String, String );
+
+#[derive(CandidType, candid::Deserialize, Debug)]
+pub struct HttpRequest {
+    pub(crate) method: String,
+    pub(crate) url: String,
+    pub(crate) headers: Vec<HeaderField>,
+    pub(crate) body: Vec<u8>
+}
+#[derive(CandidType, candid::Deserialize)]
+pub struct HttpResponse {
+    pub(crate) status_code: u16,
+    pub(crate) headers: Vec<HeaderField>,
+    pub(crate) body: Vec<u8>
+}
+
+// #[derive(serde::Serialize, serde::Deserialize)]
+// struct SearchQuery(Vec<f32>);
+
+#[derive(CandidType)]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct SearchResponse {
+  pub(crate) similarity: f32,
+  pub(crate) data: String
+}
