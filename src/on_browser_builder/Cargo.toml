@@ -44,3 +44,6 @@ log = "0.4"
 env_logger = "0.9" 
 
 instance = { path = "../instance" }
+
+bitvec = { version = "1.0.1", features = ["serde"]}
+bincode = "1.3"

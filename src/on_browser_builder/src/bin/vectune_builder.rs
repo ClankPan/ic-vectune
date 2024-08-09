@@ -5,6 +5,8 @@ use std::{
 
 use log::debug;
 
+use bitvec::prelude::*;
+
 use vectune::PointInterface;
 // use vectune::PointInterface;
 use wasm_bindgen::prelude::*;
@@ -234,78 +236,6 @@ impl StorageTrait for Storage {
     }
 }
 
-// struct VectorReader {
-//     vectors: Vec<Vec<f32>>,
-// }
-
-// impl OriginalVectorReaderTrait<f32> for VectorReader {
-//     fn read(&self, index: &usize) -> Result<Vec<f32>> {
-//         Ok(self.vectors[*index].clone())
-//     }
-//     fn read_with_range(&mut self, _start: &usize, _end: &usize) -> Result<Vec<Vec<f32>>> {
-//         todo!()
-//     }
-//     fn get_num_vectors(&self) -> usize {
-//         self.vectors.len()
-//     }
-//     fn get_vector_dim(&self) -> usize {
-//         self.vectors[0].len()
-//     }
-// }
-
-
-
-// #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-// pub struct Point(Vec<f32>);
-
-// impl PointInterface for Point {
-//     fn distance(&self, other: &Self) -> f32 {
-//         // self.0
-//         //     .iter()
-//         //     .zip(other.0.iter())
-//         //     .map(|(a, b)| {
-//         //         let c = a - b;
-//         //         c * c
-//         //     })
-//         //     .sum::<f32>()
-//         //     .sqrt()
-        
-//         todo!("cons sim")
-//     }
-
-//     fn dim() -> u32 {
-//         384
-//     }
-
-//     fn add(&self, other: &Self) -> Self {
-//         Point::from_f32_vec(
-//             self.to_f32_vec()
-//                 .into_iter()
-//                 .zip(other.to_f32_vec())
-//                 .map(|(x, y)| x + y)
-//                 .collect(),
-//         )
-//     }
-//     fn div(&self, divisor: &usize) -> Self {
-//         Point::from_f32_vec(
-//             self.to_f32_vec()
-//                 .into_iter()
-//                 .map(|v| v / *divisor as f32)
-//                 .collect(),
-//         )
-//     }
-
-//     fn zero() -> Self {
-//         Point::from_f32_vec(vec![0.0; Point::dim() as usize])
-//     }
-
-//     fn to_f32_vec(&self) -> Vec<f32> {
-//         self.0.iter().copied().collect()
-//     }
-//     fn from_f32_vec(a: Vec<f32>) -> Self {
-//         Point(a.into_iter().collect())
-//     }
-// }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Item {
@@ -467,6 +397,20 @@ impl Vectune {
 
         bytes
     }
+}
+
+
+#[wasm_bindgen]
+pub fn extract_false_indices_from_serialized_bitvec(input: JsValue) -> Result<JsValue, JsError> {
+    let bytes: Vec<u8> = serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
+    let bitvec: BitVec<u8, Lsb0> = bincode::deserialize(&bytes).unwrap();
+
+    let indices: Vec<usize> = bitvec
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, bit)| if !bit { Some(index) } else { None })
+        .collect();
+    Ok(serde_wasm_bindgen::to_value(&indices)?)
 }
 
 fn main() {
