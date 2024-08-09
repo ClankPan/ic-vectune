@@ -38,16 +38,25 @@ const TOKENIZER: &[u8] = include_bytes!("../../models/tokenizer.json");
 
 const WASM_PAGE_SIZE: u64 = 65536;
 
-// #[cfg_attr(not(test), wasm_bindgen)]
-// #[wasm_bindgen]
+#[wasm_bindgen]
 pub struct EmbeddingModel {
     bert: BertModel,
     tokenizer: Tokenizer,
 }
-// #[wasm_bindgen]
+#[wasm_bindgen]
 impl EmbeddingModel {
-    // #[wasm_bindgen(constructor)]
-    pub fn new() -> Result<EmbeddingModel> {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Result<EmbeddingModel, JsError> {
+        Ok(EmbeddingModel::_new().map_err(|m| JsError::new(&m.to_string()))?)
+    }
+
+    pub fn get_embeddings(&mut self, input :JsValue) -> Result<JsValue, JsError> {
+        let sentences: Vec<String> =
+            serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
+        Ok(serde_wasm_bindgen::to_value(&self._get_embeddings(&sentences, true).map_err(|m| JsError::new(&m.to_string()))?)?)
+    }
+
+    fn _new() -> Result<EmbeddingModel> {
         console_error_panic_hook::set_once();
         // console_log!("loading model");
         let device = &Device::Cpu;
@@ -278,7 +287,7 @@ impl Vectune {
     }
 
     fn _build(&mut self, items: Items) -> Result<Vec<u8>> {
-        let mut bert = EmbeddingModel::new()?;
+        let mut bert = EmbeddingModel::_new()?;
         let mut data_map = ICRBTree::new();
 
         let vectors: Vec<Vec<f32>> = items
