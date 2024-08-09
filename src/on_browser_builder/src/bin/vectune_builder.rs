@@ -29,7 +29,7 @@ use tokenizers::{PaddingParams, Tokenizer};
 use base64::{engine::general_purpose, Engine as Base64Engine};
 
 use on_browser_builder::points::Point;
-use on_browser_builder::console_log;
+// use on_browser_builder::console_log;
 
 // const INSTANCE_BYTES: &[u8] = include_bytes!("models/model.safetensors");
 const WEIGHTS: &[u8] = include_bytes!("../../models/model.safetensors");
