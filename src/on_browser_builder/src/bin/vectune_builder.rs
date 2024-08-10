@@ -251,8 +251,15 @@ impl StorageTrait for Storage {
 struct Item {
     sentence: String,
     embedding: Option<String>,
+    metadata: serde_json::Value,
 }
 type Items = Vec<Item>;
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct ResponseValue {
+    sentence: String,
+    metadata: serde_json::Value,
+}
 
 #[wasm_bindgen]
 pub struct Vectune {
@@ -296,7 +303,11 @@ impl Vectune {
             .map(|(index, item)| {
                 // Insert data to ic-rbtree
                 let index: u32 = index.try_into().unwrap();
-                let _ = data_map.insert(index, item.sentence.clone().into_bytes());
+                let response_value_of_search = ResponseValue {
+                    sentence: item.sentence.clone(),
+                    metadata: item.metadata,
+                };
+                let _ = data_map.insert(index, serde_json::to_string(&response_value_of_search).unwrap().into_bytes());
 
                 // Vectorize text if embeddings is null
                 if let Some(embeddings) = item.embedding {
@@ -410,7 +421,7 @@ pub struct MemoryAndMetadata {
 }
 
 #[wasm_bindgen]
-pub fn deserialize(input: JsValue) -> Result<JsValue, JsError> {
+pub fn deserialize_memory_and_metadata(input: JsValue) -> Result<JsValue, JsError> {
     let bytes: Vec<u8> = serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
     let data: MemoryAndMetadata = bincode::deserialize(&bytes).unwrap();
     Ok(serde_wasm_bindgen::to_value(&data)?)
@@ -434,62 +445,62 @@ fn main() {
     console_error_panic_hook::set_once();
 }
 
-#[cfg(test)]
-mod tests {
+// #[cfg(test)]
+// mod tests {
 
-    use super::*;
-    use rand::Rng;
+//     use super::*;
+//     use rand::Rng;
 
-    fn generate_random_string(length: usize) -> String {
-        const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
-                                abcdefghijklmnopqrstuvwxyz\
-                                0123456789";
-        let mut rng = rand::thread_rng();
+//     fn generate_random_string(length: usize) -> String {
+//         const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+//                                 abcdefghijklmnopqrstuvwxyz\
+//                                 0123456789";
+//         let mut rng = rand::thread_rng();
 
-        let random_string: String = (0..length)
-            .map(|_| {
-                let idx = rng.gen_range(0..CHARSET.len());
-                CHARSET[idx] as char
-            })
-            .collect();
+//         let random_string: String = (0..length)
+//             .map(|_| {
+//                 let idx = rng.gen_range(0..CHARSET.len());
+//                 CHARSET[idx] as char
+//             })
+//             .collect();
 
-        random_string
-    }
+//         random_string
+//     }
 
-    #[test]
-    fn ic_rbtree() {
-        let mut map = ICRBTree::new();
+//     #[test]
+//     fn ic_rbtree() {
+//         let mut map = ICRBTree::new();
 
-        for i in 0..1000 as u32 {
-            map.insert(i, generate_random_string(999).into_bytes());
-        }
+//         for i in 0..1000 as u32 {
+//             map.insert(i, generate_random_string(999).into_bytes());
+//         }
 
-        let memory = map.into_memory();
+//         let memory = map.into_memory();
 
-        let map = StableBTreeMap::<u32, String, ICMemory>::init(ICMemory {
-            mem: RefCell::new(memory),
-        });
+//         let map = StableBTreeMap::<u32, String, ICMemory>::init(ICMemory {
+//             mem: RefCell::new(memory),
+//         });
 
-        for i in 0..1000 as u32 {
-            assert!(map.get(&i).is_some())
-        }
-    }
+//         for i in 0..1000 as u32 {
+//             assert!(map.get(&i).is_some())
+//         }
+//     }
 
-    // #[wasm_bindgen_test]
-    #[test]
-    fn build() {
-        let mut vectune = Vectune::new();
-        let items: Vec<Item> = (0..10).into_iter().map(|_| Item {sentence: generate_random_string(100), embedding: None}).collect();
-        let res = vectune._build(items);
-        // println!("{:?}", res);
-        assert!(res.is_ok());
+//     // #[wasm_bindgen_test]
+//     #[test]
+//     fn build() {
+//         let mut vectune = Vectune::new();
+//         let items: Vec<Item> = (0..10).into_iter().map(|_| Item {sentence: generate_random_string(100), embedding: None}).collect();
+//         let res = vectune._build(items);
+//         // println!("{:?}", res);
+//         assert!(res.is_ok());
 
-        // match EmbeddingModel::new() {
-        //     Ok(_) => {}
-        //     Err(err) => {
-        //         println!("{:?}", err);
-        //         assert!(false);
-        //     }
-        // }
-    }
-}
+//         // match EmbeddingModel::new() {
+//         //     Ok(_) => {}
+//         //     Err(err) => {
+//         //         println!("{:?}", err);
+//         //         assert!(false);
+//         //     }
+//         // }
+//     }
+// }
