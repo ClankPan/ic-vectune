@@ -382,31 +382,38 @@ impl Vectune {
         )
         .into_memory();
 
-       
-        /*
-        header
-        |data_map_len: u64|graph_store_len: u64|backlinks_map_len: u64|medoid_index: u32|num_vectors: u32|vector_dim: u32|edge_degrees: u32|
+        let data = MemoryAndMetadata {
+            medoid_index, 
+            num_vectors, 
+            vector_dim, 
+            edge_degrees, 
+            serialized_data_map, 
+            serialized_graph_store, 
+            serialized_backlinks_map,
+        };
 
-        body
-        |serialized_data_map|serialized_graph_store|serialized_backlinks_map|
-        */
-        
-        let mut bytes = vec![];
-        // header
-        bytes.extend((serialized_data_map.len() as u64).to_le_bytes()); // 0-8
-        bytes.extend((serialized_graph_store.len() as u64).to_le_bytes()); // 8-16
-        bytes.extend((serialized_backlinks_map.len() as u64).to_le_bytes()); // 16-24
-        bytes.extend(medoid_index.to_le_bytes()); // 24-28
-        bytes.extend(num_vectors.to_le_bytes()); // 28-32
-        bytes.extend(vector_dim.to_le_bytes()); // 32-36
-        bytes.extend(edge_degrees.to_le_bytes()); // 36-40
-        // body
-        bytes.extend(serialized_data_map);
-        bytes.extend(serialized_graph_store);
-        bytes.extend(serialized_backlinks_map);
+        bincode::serialize(&data).unwrap()
 
-        bytes
     }
+}
+
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct MemoryAndMetadata {
+    medoid_index: u32, 
+    num_vectors: u32, 
+    vector_dim: u32, 
+    edge_degrees: u32, 
+    serialized_data_map: Vec<u8>, 
+    serialized_graph_store: Vec<u8>, 
+    serialized_backlinks_map: Vec<u8>
+}
+
+#[wasm_bindgen]
+pub fn deserialize(input: JsValue) -> Result<JsValue, JsError> {
+    let bytes: Vec<u8> = serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
+    let data: MemoryAndMetadata = bincode::deserialize(&bytes).unwrap();
+    Ok(serde_wasm_bindgen::to_value(&data)?)
 }
 
 

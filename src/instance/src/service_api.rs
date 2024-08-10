@@ -10,14 +10,6 @@ use crate::{consts::*, thread_locals::*, types::*};
 
 use crate::point::Point;
 
-/*
-
-
-wip
-
-距離はcos simに変更する
-
-*/
 
 #[query]
 fn search(query_vector: Vec<f32>, top_k: u64, size_l: u64) -> Vec<SearchResponse> {
@@ -144,10 +136,10 @@ fn http_request(req: HttpRequest) -> HttpResponse {
             (status_code, body)
         },
         Err(err) => {
-          ic_cdk::println!("err in parsing json");
-          let status_code = 400;
-          let body = serde_json::to_string(&format!("JSON parsing error: {}", err.to_string())).unwrap().into_bytes();
-          (status_code, body)
+            ic_cdk::println!("err in parsing json");
+            let status_code = 400;
+            let body = serde_json::to_string(&format!("JSON parsing error: {}", err.to_string())).unwrap().into_bytes();
+            (status_code, body)
         }
       }
     },
