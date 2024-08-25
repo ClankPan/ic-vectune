@@ -58,7 +58,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Executes the build process, including merge-index and gorder
-    Upload {
+    SetupUpload {
         #[arg(long)]
         ic: bool,
 
@@ -69,7 +69,9 @@ enum Commands {
         chunk_kib_size: usize,
 
         source_data_path: String,
-        graph_metadata_path: String,
+        graph_bin_path: String,
+        backlinks_bin_path: String,
+
         target_canister_id: String,
     },
     Search {
@@ -91,20 +93,22 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Upload {
+        Commands::SetupUpload {
             ic,
             name,
             chunk_kib_size,
             source_data_path,
-            graph_metadata_path,
             target_canister_id,
+            graph_bin_path,
+            backlinks_bin_path
         } => {
             let agent = Arc::new(get_agent(&name, ic).await?);
             let target_canister_id = Principal::from_text(target_canister_id)?;
             let chunk_byte_size = chunk_kib_size * KIB as usize;
 
-            let chunk_reader = Arc::new(ChunkReader::new(&source_data_path, chunk_byte_size)?);
-            let graph_metadata = GraphMetadata::load(&graph_metadata_path).unwrap();
+            // let source_chunk_reader = Arc::new(ChunkReader::new(&source_data_path, chunk_byte_size)?);
+            let graph_chunk_reader = Arc::new(ChunkReader::new(&source_data_path, chunk_byte_size)?);
+            let graph_metadata = GraphMetadata::load(&graph_bin_path).unwrap();
 
             let num_chunks = (chunk_reader.file_size() + chunk_byte_size - 1) / chunk_byte_size;
 
@@ -256,6 +260,115 @@ async fn main() -> Result<()> {
     }
 }
 
+
+fn calculate_db_key() -> u64 {
+    fn serialize(
+        data_map: ICRBTree,
+        graph_on_storage: GraphStore<Storage>,
+        backlinks: Vec<Vec<u32>>,
+        medoid_index: u32,
+    ) -> Vec<u8> {
+        let num_vectors = graph_on_storage.num_vectors() as u32;
+        let vector_dim = graph_on_storage.vector_dim() as u32;
+        let edge_degrees = graph_on_storage.max_edge_degrees() as u32;
+
+        // data map
+        let serialized_data_map = data_map.into_memory();
+        // graph
+        let serialized_graph_store = graph_on_storage.into_storage().into_memory();
+        // backlinks
+        let serialized_backlinks_map: Vec<u8> = ICRBTree::build_from_vec_u8(
+            backlinks
+                .into_iter()
+                .map(|links| bytemuck::cast_slice(&links).to_vec())
+                .collect(),
+        )
+        .into_memory();
+
+        let data = MemoryAndMetadata {
+            medoid_index, 
+            num_vectors, 
+            vector_dim, 
+            edge_degrees, 
+            serialized_data_map, 
+            serialized_graph_store, 
+            serialized_backlinks_map,
+        };
+
+        bincode::serialize(&data).unwrap()
+
+    }
+}
+
+#[derive(candid::CandidType, candid::Deserialize, Clone, Copy)]
+pub enum ChunkType {
+    Graph,
+    DataMap,
+    BacklinksMap
+}
+enum UploadLoop {
+    Done,
+    Continue(BitVec<u8>),
+}
+
+async fn upload_raw_memory(chunk_byte_size: usize, agent: Arc<Agent>, target_canister_id: Principal, chunk_type: ChunkType, chunk_reader: ChunkReader) -> Result<()> {
+
+    let chunk_reader = Arc::new(chunk_reader);
+
+    while let UploadLoop::Continue(uploaded_chunks) = {
+        println!("calling missing_chunks...");
+        let uploaded_chunks = get_missing_chunks(&agent, target_canister_id, &chunk_type).await?;
+        let missing_counts = uploaded_chunks.iter().filter(|bit| !**bit).count();
+
+        assert!(chunk_reader.file_size() <= uploaded_chunks.len() * chunk_byte_size);
+
+        match missing_counts {
+            0 => UploadLoop::Done,
+            _ => {
+                println!("missing_counts: {missing_counts}");
+                UploadLoop::Continue(uploaded_chunks)
+            }
+        }
+    } {
+        let uploaded_chunks_len = uploaded_chunks.len();
+
+        let task_stream = stream::iter(
+            uploaded_chunks
+                .into_iter()
+                .enumerate()
+                .filter_map(|(index, bit)| if !bit { Some(index) } else { None }),
+        )
+        .map(|chunk_index| {
+            let agent = agent.clone();
+            let chunk_reader = chunk_reader.clone();
+            tokio::spawn(async move {
+                // Load chunk data from disk
+                let chunk_byte_data = chunk_reader.read(chunk_index);
+
+                // upload chunk into canister
+                let response = call_upload_chunk(
+                    &agent,
+                    target_canister_id,
+                    (chunk_byte_data, chunk_index as u64),
+                    &chunk_type
+                )
+                .await;
+                println!("chunk_index: {chunk_index}/{uploaded_chunks_len}");
+                match response {
+                    Ok(_) => {}
+                    Err(err) => {
+                        println!("{:?}", err);
+                    }
+                }
+            })
+        });
+
+        let _results: Vec<_> = task_stream.buffered(20).collect().await;
+    }
+
+    Ok(())
+}
+
 async fn get_agent(name: &str, is_ic: bool) -> Result<Agent> {
     let mut path = dirs::home_dir().unwrap();
     path.push(format!(".config/dfx/identity/{name}/identity.pem"));
@@ -331,42 +444,14 @@ async fn call_status_code(agent: &Agent, target_canister_id: Principal) -> Resul
     Ok(status_code)
 }
 
-async fn call_initialize(
-    agent: &Agent,
-    target_canister_id: Principal,
-
-    num_chunks: u64,
-    chunk_byte_size: u64,
-    medoid_node_index: u32,
-    sector_byte_size: u64,
-    num_vectors: u64,
-    vector_dim: u64,
-    edge_degrees: u64,
-) -> Result<()> {
-    let method_name = "initialize";
-    let _ = agent
-        .update(&target_canister_id, method_name)
-        .with_arg(Encode!(
-            &num_chunks,
-            &chunk_byte_size,
-            &medoid_node_index,
-            &sector_byte_size,
-            &num_vectors,
-            &vector_dim,
-            &edge_degrees
-        )?)
-        .call_and_wait()
-        .await?;
-    Ok(())
-}
-
 async fn get_missing_chunks(
     agent: &Agent,
     target_canister_id: Principal,
+    chunk_type: &ChunkType,
 ) -> Result<BitVec<u8, Lsb0>> {
     let mut data = Vec::new();
     let mut index = 0;
-    while let Some(bytes) = call_missing_chunks(agent, target_canister_id, index).await? {
+    while let Some(bytes) = call_missing_chunks(agent, target_canister_id, index, chunk_type).await? {
         println!("fetch");
         data.extend(bytes);
         index += 1;
@@ -381,11 +466,12 @@ async fn call_missing_chunks(
     agent: &Agent,
     target_canister_id: Principal,
     index: u64,
+    chunk_type: &ChunkType,
 ) -> Result<Option<Vec<u8>>> {
     let method_name = "missing_chunks";
     let response = agent
         .query(&target_canister_id, method_name)
-        .with_arg(Encode!(&index)?)
+        .with_arg(Encode!(&index, chunk_type)?)
         .call()
         .await?;
     let Some(uploaded_chunks) = Decode!(&response, Option<Vec<u8>>)? else {
@@ -399,13 +485,104 @@ async fn call_upload_chunk(
     agent: &Agent,
     target_canister_id: Principal,
     arg: (Vec<u8>, u64),
+    chunk_type: &ChunkType,
 ) -> Result<()> {
     let method_name = "upload_chunk";
-    let (chunk, index) = arg;
+    let (chunk, index, ) = arg;
     let _ = agent
         .update(&target_canister_id, method_name)
-        .with_arg(Encode!(&chunk, &index)?)
+        .with_arg(Encode!(&chunk, &index, chunk_type)?)
         .call_and_wait()
         .await?;
     Ok(())
 }
+
+
+
+
+
+
+
+
+
+
+// async fn call_initialize(
+//     agent: &Agent,
+//     target_canister_id: Principal,
+
+//     num_chunks: u64,
+//     chunk_byte_size: u64,
+//     medoid_node_index: u32,
+//     sector_byte_size: u64,
+//     num_vectors: u64,
+//     vector_dim: u64,
+//     edge_degrees: u64,
+// ) -> Result<()> {
+//     let method_name = "initialize";
+//     let _ = agent
+//         .update(&target_canister_id, method_name)
+//         .with_arg(Encode!(
+//             &num_chunks,
+//             &chunk_byte_size,
+//             &medoid_node_index,
+//             &sector_byte_size,
+//             &num_vectors,
+//             &vector_dim,
+//             &edge_degrees
+//         )?)
+//         .call_and_wait()
+//         .await?;
+//     Ok(())
+// }
+
+// async fn get_missing_chunks(
+//     agent: &Agent,
+//     target_canister_id: Principal,
+//     chunk_type: ChunkType,
+// ) -> Result<BitVec<u8, Lsb0>> {
+//     let mut data = Vec::new();
+//     let mut index = 0;
+//     while let Some(bytes) = call_missing_chunks(agent, target_canister_id, index).await? {
+//         println!("fetch");
+//         data.extend(bytes);
+//         index += 1;
+//     }
+
+//     let uploaded_chunks: BitVec<u8, Lsb0> = bincode::deserialize(&data).unwrap();
+
+//     Ok(uploaded_chunks)
+// }
+
+// async fn call_missing_chunks(
+//     agent: &Agent,
+//     target_canister_id: Principal,
+//     index: u64,
+//     chunk_type: ChunkType,
+// ) -> Result<Option<Vec<u8>>> {
+//     let method_name = "missing_chunks";
+//     let response = agent
+//         .query(&target_canister_id, method_name)
+//         .with_arg(Encode!(&index)?)
+//         .call()
+//         .await?;
+//     let Some(uploaded_chunks) = Decode!(&response, Option<Vec<u8>>)? else {
+//         return Ok(None);
+//     };
+
+//     Ok(Some(uploaded_chunks))
+// }
+
+// async fn call_upload_chunk(
+//     agent: &Agent,
+//     target_canister_id: Principal,
+//     arg: (Vec<u8>, u64),
+// ) -> Result<()> {
+//     let method_name = "upload_chunk";
+//     let (chunk, index) = arg;
+//     let _ = agent
+//         .update(&target_canister_id, method_name)
+//         .with_arg(Encode!(&chunk, &index)?)
+//         .call_and_wait()
+//         .await?;
+//     Ok(())
+// }

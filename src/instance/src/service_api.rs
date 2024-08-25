@@ -1,14 +1,64 @@
-use ic_cdk::{query, trap};
+use ic_cdk::{query, trap, update};
 use ic_stable_structures::memory_manager::MemoryId;
-use ssd_vectune::graph::UnorderedGraph;
+use ssd_vectune::graph::Graph;
 use ssd_vectune::graph_store::GraphStore;
 use vectune::PointInterface;
 use url::Url;
 
-use crate::{consts::*, thread_locals::*, types::*};
+use crate::{consts::*, thread_locals::*, types::*, auth::*};
 
 
 use crate::point::Point;
+
+#[update(guard = "is_owner")]
+fn batch_pool() {
+  
+}
+
+#[update(guard = "is_owner")]
+fn insert(embedding: Vec<f32>, metadata: String) {
+
+
+  let mut graph = load_graph();
+  
+  // let new_index = 
+  let new_index = vectune::insert(&mut graph, Point::from_f32_vec(embedding));
+
+  /*
+  todo:
+    Graphの実装をssd-vectuneから持ってこないで、ic-vectuneに実装する
+    graph.alloc、graph.overwirte_out_edgesで、indexとbacklinkの管理をする。
+
+    overwirte_out_edgesでは、現在のedgeと新しいedgeの差分を比較して、backlinkを更新。
+
+    freeでもbacklinkを開放する
+  
+   */
+}
+
+fn suspect() {
+
+}
+
+fn load_graph() -> Graph<Storage> {
+    let storage_mem =
+        MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(VAMANA_GRAPH_MEMORY_ID)));
+    let storage = Storage {
+        storage_mem,
+    };
+
+    let graph_on_storage = GraphStore::load(
+        // metadata.num_vectors as usize,
+        // metadata.vector_dim as usize,
+        // metadata.edge_degrees as usize,
+        storage,
+    );
+
+    let graph = Graph::new(graph_on_storage);
+
+    graph
+}
+
 
 
 #[query]
@@ -21,25 +71,26 @@ fn search(query_vector: Vec<f32>, top_k: u64, size_l: u64) -> Vec<SearchResponse
 
     METADATA.with(|metadata| {
         let metadata = metadata.borrow();
-        let Metadata::Running(metadata) = &*metadata.get() else {
+        let Metadata::Running(_metadata) = &*metadata.get() else {
             trap("Metadata is not Running")
         };
 
-        let storage_mem =
-            MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(VAMANA_GRAPH_MEMORY_ID)));
-        let storage = Storage {
-            storage_mem,
-            sector_byte_size: metadata.sector_byte_size as usize,
-        };
+        // let storage_mem =
+        //     MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(VAMANA_GRAPH_MEMORY_ID)));
+        // let storage = Storage {
+        //     storage_mem,
+        // };
 
-        let unordered_graph_on_storage = GraphStore::new(
-            metadata.num_vectors as usize,
-            metadata.vector_dim as usize,
-            metadata.edge_degrees as usize,
-            storage,
-        );
+        // let graph_on_storage = GraphStore::load(
+        //     // metadata.num_vectors as usize,
+        //     // metadata.vector_dim as usize,
+        //     // metadata.edge_degrees as usize,
+        //     storage,
+        // );
 
-        let mut graph = UnorderedGraph::new(unordered_graph_on_storage, metadata.medoid_node_index);
+        // let mut graph = Graph::new(graph_on_storage);
+
+        let mut graph = load_graph();
 
         graph.set_size_l(size_l as usize);
 

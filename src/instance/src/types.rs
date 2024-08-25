@@ -165,7 +165,6 @@ impl Storable for Metadata {
 
 pub struct Storage {
     pub(crate) storage_mem: VirtualMemory<DefaultMemoryImpl>,
-    pub(crate) sector_byte_size: usize,
 }
 
 impl StorageTrait for Storage {
@@ -179,10 +178,6 @@ impl StorageTrait for Storage {
 
     fn write(&self, _offset: u64, _src: &[u8]) {
         todo!()
-    }
-
-    fn sector_byte_size(&self) -> usize {
-        self.sector_byte_size
     }
 }
 
@@ -305,4 +300,23 @@ pub struct HttpResponse {
 pub struct SearchResponse {
   pub(crate) similarity: f32,
   pub(crate) data: String
+}
+
+#[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
+pub struct Backlinks(pub Vec<u32>);
+
+impl Storable for Backlinks {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    // const BOUND: Bound = Bound::Bounded {
+    //     max_size: 125_000_000, // max size, 1 billion bits
+    //     is_fixed_size: false,
+    // };
+    const BOUND: Bound = Bound::Unbounded;
 }

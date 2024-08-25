@@ -77,10 +77,6 @@ impl PointInterface for Point {
         (sum + remainder_sum).sqrt()
     }
 
-    fn dim() -> u32 {
-        96
-    }
-
     fn add(&self, other: &Self) -> Self {
         Point::from_f32_vec(
             self.to_f32_vec()
@@ -97,10 +93,6 @@ impl PointInterface for Point {
                 .map(|v| v / *divisor as f32)
                 .collect(),
         )
-    }
-
-    fn zero() -> Self {
-        Point::from_f32_vec(vec![0.0; Point::dim() as usize])
     }
 
     fn to_f32_vec(&self) -> Vec<f32> {

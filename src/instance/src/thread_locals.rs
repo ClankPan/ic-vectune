@@ -47,7 +47,7 @@ thread_local! {
     StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(IC_STATUS_MEMORY_ID))))
   );
 
-  pub static BACKLINKS_MAP: RefCell<StableBTreeMap<u32, Vec<u8>, VMemory>> = RefCell::new(
+  pub static BACKLINKS_MAP: RefCell<StableBTreeMap<u32, Backlinks, VMemory>> = RefCell::new(
     StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(BACKLINKS_MEMORY_ID))))
   );
 }

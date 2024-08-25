@@ -32,11 +32,12 @@ wasm-bindgen-test = "0.3"
 
 # IC
 ic-stable-structures = "0.6.5"
+candid = "0.10"
 
-# ssd-vectune = {path = "../../../ssd-vectune", features = []}
-# vectune = {path = "../../../vectune", features = []}
-vectune = {git = "https://github.com/ClankPan/Vectune", rev = "d785917e973dbb011992ed3ee98406c707d7ca80", features = ["wasm-bindgen"]}
-ssd-vectune = {git = "https://github.com/ClankPan/ssd-vectune", rev = "0c5ae4614a639f7a83765ca08916036a5f5a357c", features = ["wasm-bindgen"]}
+ssd-vectune = {path = "../../../ssd-vectune", features = ["wasm-bindgen"]}
+vectune = {path = "../../../vectune", features = ["wasm-bindgen"]}
+# vectune = {git = "https://github.com/ClankPan/Vectune", rev = "d785917e973dbb011992ed3ee98406c707d7ca80", features = ["wasm-bindgen"]}
+# ssd-vectune = {git = "https://github.com/ClankPan/ssd-vectune", rev = "0c5ae4614a639f7a83765ca08916036a5f5a357c", features = ["wasm-bindgen"]}
 
 bytemuck = "1.15.0"
 

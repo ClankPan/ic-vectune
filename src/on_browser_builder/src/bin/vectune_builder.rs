@@ -1,9 +1,10 @@
 use std::{
-    cell::RefCell,
-    sync::{Arc, RwLock},
+    borrow::Cow, cell::RefCell, sync::{Arc, RwLock}
 };
 
 use log::debug;
+
+use candid::{Encode, Decode};
 
 use bitvec::prelude::*;
 
@@ -14,7 +15,7 @@ use wasm_bindgen_test::wasm_bindgen_test_configure;
 wasm_bindgen_test_configure!(run_in_browser);
 
 use anyhow::{Error, Result};
-use ic_stable_structures::{BTreeMap as StableBTreeMap, Memory};
+use ic_stable_structures::{storable::Bound, BTreeMap as StableBTreeMap, Memory, Storable};
 use ssd_vectune::{
     graph_store::GraphStore,
     storage::StorageTrait,
@@ -171,39 +172,84 @@ impl Memory for ICMemory {
     }
 }
 
-pub struct ICRBTree {
-    ic_rbtree: StableBTreeMap<u32, Vec<u8>, ICMemory>,
+// pub struct ICRBTree {
+//     ic_rbtree: StableBTreeMap<u32, Vec<u8>, ICMemory>,
+// }
+// impl ICRBTree {
+//     pub fn new() -> Self {
+//         let ic_rbtree = StableBTreeMap::new(ICMemory {
+//             mem: RefCell::new(vec![]),
+//         });
+//         Self { ic_rbtree }
+//     }
+
+//     pub fn insert(&mut self, key: u32, value: Vec<u8>) -> Option<Vec<u8>> {
+//         self.ic_rbtree.insert(key, value)
+//     }
+
+//     pub fn get(&mut self, key: u32) -> Option<Vec<u8>> {
+//         self.ic_rbtree.get(&key)
+//     }
+
+//     pub fn build_from_vec_u8(items: Vec<Vec<u8>>) -> Self {
+//         let mut ic_rbtree = StableBTreeMap::new(ICMemory {
+//             mem: RefCell::new(vec![]),
+//         });
+//         for (index, item) in items.into_iter().enumerate() {
+//             let _ = ic_rbtree.insert(index.try_into().unwrap(), item);
+//         }
+
+//         Self { ic_rbtree }
+//     }
+
+//     pub fn into_memory(self) -> Vec<u8> {
+//         self.ic_rbtree.into_memory().mem.into_inner()
+//     }
+// }
+
+
+pub struct ICRBTree<K, V>
+where
+  K: Ord + Storable + Clone,
+  V: Storable,
+{
+  ic_rbtree: StableBTreeMap<K,V, ICMemory>,
 }
-impl ICRBTree {
-    pub fn new() -> Self {
-        let ic_rbtree = StableBTreeMap::new(ICMemory {
-            mem: RefCell::new(vec![]),
-        });
-        Self { ic_rbtree }
-    }
 
-    pub fn insert(&mut self, key: u32, value: Vec<u8>) -> Option<Vec<u8>> {
-        self.ic_rbtree.insert(key, value)
-    }
+impl<K, V> ICRBTree<K, V>
+where
+  K: Ord + Storable + Clone,
+  V: Storable,
+{
+  pub fn new() -> Self {
+      let ic_rbtree = StableBTreeMap::new(ICMemory {
+          mem: RefCell::new(vec![]),
+      });
+      Self { ic_rbtree }
+  }
 
-    pub fn get(&mut self, key: u32) -> Option<Vec<u8>> {
-        self.ic_rbtree.get(&key)
-    }
+  pub fn insert(&mut self, key: K, value: V) -> Option<V> {
+      self.ic_rbtree.insert(key, value)
+  }
 
-    pub fn build_from_vec_u8(items: Vec<Vec<u8>>) -> Self {
-        let mut ic_rbtree = StableBTreeMap::new(ICMemory {
-            mem: RefCell::new(vec![]),
-        });
-        for (index, item) in items.into_iter().enumerate() {
-            let _ = ic_rbtree.insert(index.try_into().unwrap(), item);
-        }
+  pub fn get(&mut self, key: K) -> Option<V> {
+      self.ic_rbtree.get(&key)
+  }
 
-        Self { ic_rbtree }
-    }
+  pub fn build_from_vec(items: Vec<(K, V)>) -> Self {
+      let mut ic_rbtree = StableBTreeMap::new(ICMemory {
+          mem: RefCell::new(vec![]),
+      });
+      for (k, v) in items.into_iter() {
+          let _ = ic_rbtree.insert(k, v);
+      }
 
-    pub fn into_memory(self) -> Vec<u8> {
-        self.ic_rbtree.into_memory().mem.into_inner()
-    }
+      Self { ic_rbtree }
+  }
+
+  pub fn into_memory(self) -> Vec<u8> {
+      self.ic_rbtree.into_memory().mem.into_inner()
+  }
 }
 
 struct Storage {
@@ -241,9 +287,28 @@ impl StorageTrait for Storage {
         slice.copy_from_slice(src);
     }
 
-    fn sector_byte_size(&self) -> usize {
-        0
+    // fn sector_byte_size(&self) -> usize {
+    //     0
+    // }
+}
+
+#[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
+struct Backlinks(Vec<u32>);
+
+impl Storable for Backlinks {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
     }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    // const BOUND: Bound = Bound::Bounded {
+    //     max_size: 125_000_000, // max size, 1 billion bits
+    //     is_fixed_size: false,
+    // };
+    const BOUND: Bound = Bound::Unbounded;
 }
 
 
@@ -307,7 +372,7 @@ impl Vectune {
                     sentence: item.sentence.clone(),
                     metadata: item.metadata,
                 };
-                let _ = data_map.insert(index, serde_json::to_string(&response_value_of_search).unwrap().into_bytes());
+                let _ = data_map.insert(index, serde_json::to_string(&response_value_of_search).unwrap());
 
                 // Vectorize text if embeddings is null
                 if let Some(embeddings) = item.embedding {
@@ -332,7 +397,7 @@ impl Vectune {
 
         println!("finish embedding");
 
-        let file_byte_size = ssd_vectune::utils::node_byte_size(self.dim) * vectors.len();
+        let file_byte_size = ssd_vectune::utils::file_byte_size(self.dim, self.degree);
         let storage = Storage::new(file_byte_size.try_into().unwrap());
         let graph_on_storage = GraphStore::new(vectors.len(), self.dim, self.degree, storage);
         // let vector_reader = VectorReader { vectors };
@@ -371,24 +436,25 @@ impl Vectune {
     }
 
     fn serialize(
-        data_map: ICRBTree,
+        data_map: ICRBTree<u32, String>,
         graph_on_storage: GraphStore<Storage>,
         backlinks: Vec<Vec<u32>>,
         medoid_index: u32,
     ) -> Vec<u8> {
         let num_vectors = graph_on_storage.num_vectors() as u32;
         let vector_dim = graph_on_storage.vector_dim() as u32;
-        let edge_degrees = graph_on_storage.edge_max_degree() as u32;
+        let edge_degrees = graph_on_storage.max_edge_degrees() as u32;
 
         // data map
         let serialized_data_map = data_map.into_memory();
         // graph
         let serialized_graph_store = graph_on_storage.into_storage().into_memory();
         // backlinks
-        let serialized_backlinks_map: Vec<u8> = ICRBTree::build_from_vec_u8(
+        let serialized_backlinks_map: Vec<u8> = ICRBTree::build_from_vec(
             backlinks
                 .into_iter()
-                .map(|links| bytemuck::cast_slice(&links).to_vec())
+                .enumerate()
+                .map(|(index, links)| (index as u32, Backlinks(links)))
                 .collect(),
         )
         .into_memory();

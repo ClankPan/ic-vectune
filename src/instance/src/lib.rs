@@ -10,6 +10,8 @@ pub mod types;
 
 pub mod point;
 
+pub mod graph;
+
 use candid::Principal;
 use build_api::StatusForFrontend;
 
@@ -18,6 +20,7 @@ use build_api::StatusForFrontend;
 /* types */
 use thread_locals::*;
 use types::*;
+use consts::*;
 
 /* Set custom random function */
 use getrandom::register_custom_getrandom;

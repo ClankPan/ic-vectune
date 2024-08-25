@@ -9,10 +9,6 @@ impl PointInterface for Point {
       -cosine_similarity(&self, &other) + 1.0 
     }
 
-    fn dim() -> u32 {
-        384
-    }
-
     fn add(&self, other: &Self) -> Self {
         Point::from_f32_vec(
             self.to_f32_vec()
@@ -31,10 +27,6 @@ impl PointInterface for Point {
         )
     }
 
-    fn zero() -> Self {
-        Point::from_f32_vec(vec![0.0; Point::dim() as usize])
-    }
-
     fn to_f32_vec(&self) -> Vec<f32> {
         self.0.iter().copied().collect()
     }
@@ -44,16 +36,19 @@ impl PointInterface for Point {
 }
 
 fn dot_product(vec1: &Point, vec2: &Point) -> f32 {
+    assert_eq!(vec1.0.len(), vec2.0.len());
+    let dim: usize = vec1.0.len();
   let mut result = 0.0;
-  for i in 0..Point::dim() as usize {
+  for i in 0..dim {
       result += vec1.0[i] * vec2.0[i];
   }
   result
 }
 
 fn norm(vec: &Point) -> f32 {
+    let dim = vec.0.len();
   let mut result = 0.0;
-  for i in 0..Point::dim() as usize {
+  for i in 0..dim {
       result += vec.0[i] * vec.0[i];
   }
   result.sqrt()
