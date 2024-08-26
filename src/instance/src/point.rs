@@ -1,7 +1,8 @@
 use vectune::PointInterface;
 
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+// #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
 pub struct Point(Vec<f32>);
 
 impl PointInterface for Point {

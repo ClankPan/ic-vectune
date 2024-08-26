@@ -193,6 +193,7 @@ async fn start_running() {
                 num_vectors: loading_metadata.num_vectors,
                 vector_dim: loading_metadata.vector_dim,
                 edge_degrees: loading_metadata.edge_degrees,
+                current_max_unsed_index: loading_metadata.num_vectors.try_into().expect("cannot convert u64 to u32"),
             }));
         } else {
             trap("uploading chunk is not done")

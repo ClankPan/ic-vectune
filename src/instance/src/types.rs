@@ -9,8 +9,9 @@ use num_traits::ToPrimitive;
 pub use simd_point::Point as SIMDPoint;
 use ssd_vectune::storage::StorageTrait;
 use std::borrow::Cow;
+use std::collections::HashSet;
 
-use crate::simd_point;
+use crate::{simd_point, WASM_PAGE_SIZE};
 
 use crate::thread_locals::*;
 
@@ -48,6 +49,8 @@ pub struct RunningMetadata {
     pub(crate) num_vectors: u64,
     pub(crate) vector_dim: u64,
     pub(crate) edge_degrees: u64,
+
+    pub(crate) current_max_unsed_index: u32,
 }
 
 #[derive(CandidType, Deserialize, Clone)]
@@ -176,10 +179,24 @@ impl StorageTrait for Storage {
         self.storage_mem.read(offset as u64, dst);
     }
 
-    fn write(&self, _offset: u64, _src: &[u8]) {
-        todo!()
+    fn write(&self, offset: u64, src: &[u8]) {
+        let end_addr = offset + src.len() as u64;
+        let num_pages = (end_addr + WASM_PAGE_SIZE - 1) / WASM_PAGE_SIZE;
+        let current_page_size = self.storage_mem.size();
+        if num_pages > current_page_size {
+            self.storage_mem.grow(num_pages - current_page_size);
+        }
     }
 }
+
+// fn grow_page_size(chunk_byte_size: u64, num_chunks: u64, memory_id: u8) {
+//     let storage_mem = MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(memory_id)));
+//     let num_pages = (num_chunks * chunk_byte_size + WASM_PAGE_SIZE - 1) / WASM_PAGE_SIZE;
+//     let current_page_size = storage_mem.size();
+//     if num_pages > current_page_size {
+//         storage_mem.grow(num_pages - current_page_size);
+//     }
+// }
 
 #[derive(CandidType)]
 pub struct ResponseSearchQuery {
@@ -303,9 +320,35 @@ pub struct SearchResponse {
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
-pub struct Backlinks(pub Vec<u32>);
+// #[derive(serde::Serialize, serde::Deserialize)]
+pub struct Backlinks(pub HashSet<u32>);
 
 impl Storable for Backlinks {
+    fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
+        Cow::Owned(Encode!(self).unwrap())
+    }
+
+    fn from_bytes(bytes: std::borrow::Cow<[u8]>) -> Self {
+        Decode!(bytes.as_ref(), Self).unwrap()
+    }
+
+    // const BOUND: Bound = Bound::Bounded {
+    //     max_size: 125_000_000, // max size, 1 billion bits
+    //     is_fixed_size: false,
+    // };
+    const BOUND: Bound = Bound::Unbounded;
+
+}
+
+
+#[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
+pub enum OptType {
+    Delete(u32),
+    Modify(u32, String),
+    Insert(u32, String),
+}
+
+impl Storable for OptType {
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
         Cow::Owned(Encode!(self).unwrap())
     }

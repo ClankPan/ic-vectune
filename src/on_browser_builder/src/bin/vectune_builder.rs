@@ -1,5 +1,5 @@
 use std::{
-    borrow::Cow, cell::RefCell, sync::{Arc, RwLock}
+    borrow::Cow, cell::RefCell, collections::HashSet, sync::{Arc, RwLock}
 };
 
 use log::debug;
@@ -293,7 +293,7 @@ impl StorageTrait for Storage {
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
-struct Backlinks(Vec<u32>);
+pub struct Backlinks(pub HashSet<u32>);
 
 impl Storable for Backlinks {
     fn to_bytes(&self) -> std::borrow::Cow<[u8]> {
@@ -309,9 +309,8 @@ impl Storable for Backlinks {
     //     is_fixed_size: false,
     // };
     const BOUND: Bound = Bound::Unbounded;
+
 }
-
-
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Item {
     sentence: String,
@@ -454,7 +453,7 @@ impl Vectune {
             backlinks
                 .into_iter()
                 .enumerate()
-                .map(|(index, links)| (index as u32, Backlinks(links)))
+                .map(|(index, links)| (index as u32, Backlinks(links.into_iter().collect())))
                 .collect(),
         )
         .into_memory();

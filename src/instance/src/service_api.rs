@@ -1,42 +1,63 @@
 use ic_cdk::{query, trap, update};
 use ic_stable_structures::memory_manager::MemoryId;
-use ssd_vectune::graph::Graph;
+// use ssd_vectune::graph::Graph;
 use ssd_vectune::graph_store::GraphStore;
-use vectune::PointInterface;
+use vectune::{InsertType, PointInterface};
 use url::Url;
+use vectune::GraphInterface;
 
-use crate::{consts::*, thread_locals::*, types::*, auth::*};
+use crate::{consts::*, thread_locals::*, types::*, auth::*, graph::*};
 
 
 use crate::point::Point;
 
 #[update(guard = "is_owner")]
-fn batch_pool() {
-  
+fn batch_pool(batch_delete: Vec<u32>, batch_modify: Vec<(u32, String)>, batch_insert: Vec<(Vec<f32>, String)>) -> Vec<u32> {
+    let mut graph = load_graph();
+    
+    let mut new_ids: Vec<_> = vec![];
+    BATCH_POOL.with(|list| {
+        let list = list.borrow_mut();
+        batch_delete.into_iter().for_each(|id| { list.push(&OptType::Delete(id)).expect("msg") });
+        batch_modify.into_iter().for_each(|(id, metadata)| { list.push(&&OptType::Modify(id, metadata)).expect("msg") });
+        batch_insert.into_iter().for_each(|(embedding, metadata)| {
+            let new_id = graph.alloc(Point::from_f32_vec(embedding));
+            new_ids.push(new_id);
+            list.push(&OptType::Insert(new_id, metadata)).expect("msg")
+        });
+    });
+
+    new_ids
 }
 
 #[update(guard = "is_owner")]
-fn insert(embedding: Vec<f32>, metadata: String) {
+fn batch() {
+    let mut insert = Vec::new();
+    let mut graph = load_graph();
+    BATCH_POOL.with(|list| {
+        let list = list.borrow_mut();
+        SOURCE_DATA.with(|data_map| {
+            let mut data_map = data_map.borrow_mut();
+            while let Some(item) = list.pop() {
+                match item {
+                    OptType::Delete(id) => graph.suspect(id),
+                    OptType::Modify(id, new_metadata) => {
+                        data_map.insert(id, new_metadata);
+                    },
+                    OptType::Insert(id, new_metadata) => {
+                        insert.push(id);
+                        data_map.insert(id, new_metadata);
+                    },
+                }
+            }
+        });
+    });
 
+    vectune::delete::<Point, Graph<Storage>>(&mut graph);
+    insert.into_iter().for_each(|id| {
+        vectune::insert(&mut graph, InsertType::<Point>::Id(id));
+    });
 
-  let mut graph = load_graph();
-  
-  // let new_index = 
-  let new_index = vectune::insert(&mut graph, Point::from_f32_vec(embedding));
-
-  /*
-  todo:
-    Graphの実装をssd-vectuneから持ってこないで、ic-vectuneに実装する
-    graph.alloc、graph.overwirte_out_edgesで、indexとbacklinkの管理をする。
-
-    overwirte_out_edgesでは、現在のedgeと新しいedgeの差分を比較して、backlinkを更新。
-
-    freeでもbacklinkを開放する
-  
-   */
-}
-
-fn suspect() {
 
 }
 
@@ -58,7 +79,6 @@ fn load_graph() -> Graph<Storage> {
 
     graph
 }
-
 
 
 #[query]
@@ -112,8 +132,7 @@ fn search(query_vector: Vec<f32>, top_k: u64, size_l: u64) -> Vec<SearchResponse
 
         k_ann.into_iter().map(|(dist, index)| {
             let data = SOURCE_DATA.with(|map| {
-                let bytes = map.borrow().get(&index).unwrap();
-                String::from_utf8(bytes).unwrap()
+                map.borrow().get(&index).unwrap()
             });
             SearchResponse {
                 similarity: 1.0-dist,

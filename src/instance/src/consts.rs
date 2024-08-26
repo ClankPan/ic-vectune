@@ -9,3 +9,6 @@ pub const DATA_MAP_MEMORY_ID: u8 = 2;
 pub const OWNERS_MEMORY_ID: u8 = 3;
 pub const IC_STATUS_MEMORY_ID: u8 = 4;
 pub const BACKLINKS_MEMORY_ID: u8 = 5;
+pub const FREE_ID_LIST_MEMORY_ID: u8 = 6;
+pub const BATCH_POOL_MEMORY_ID: u8 = 7;
+pub const CEMETERY_MEMORY_ID: u8 = 8;
