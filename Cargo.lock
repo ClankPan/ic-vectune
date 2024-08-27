@@ -1420,7 +1420,7 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "956caa58d4857bc9941749d55e4bd3000032d8212762586fa5705632967140e7"
 dependencies = [
- "proc-macro-crate 1.3.1",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "syn 2.0.68",
@@ -1927,18 +1927,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kd-tree"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f89ee4e60e82cf7024e5e94618c646fbf61ce7501dc5898b3d12786442d3682"
-dependencies = [
- "num-traits",
- "ordered-float",
- "paste",
- "typenum",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2183,7 +2171,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af1844ef2428cc3e1cb900be36181049ef3d3193c63e43026cfe202983b27a56"
 dependencies = [
- "proc-macro-crate 3.1.0",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "syn 2.0.68",
@@ -2231,7 +2219,7 @@ dependencies = [
  "serde-wasm-bindgen",
  "serde_json",
  "ssd-vectune",
- "tokenizers 0.19.1",
+ "tokenizers",
  "vectune",
  "wasm-bindgen",
  "wasm-bindgen-test",
@@ -2254,15 +2242,6 @@ name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
-
-[[package]]
-name = "ordered-float"
-version = "4.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19ff2cf528c6c03d9ed653d6c4ce1dc0582dc4af309790ad92f07c1cd551b0be"
-dependencies = [
- "num-traits",
-]
 
 [[package]]
 name = "p256"
@@ -2468,16 +2447,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f4c021e1093a56626774e81216a4ce732a735e5bad4868a03f3ed65ca0c3919"
 dependencies = [
  "once_cell",
- "toml_edit 0.19.15",
-]
-
-[[package]]
-name = "proc-macro-crate"
-version = "3.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d37c51ca738a55da99dc0c4a34860fd675453b8b36209178c2249bb13651284"
-dependencies = [
- "toml_edit 0.21.1",
+ "toml_edit",
 ]
 
 [[package]]
@@ -3184,7 +3154,7 @@ dependencies = [
 [[package]]
 name = "ssd-vectune"
 version = "0.1.0"
-source = "git+https://github.com/ClankPan/ssd-vectune?branch=main#8bd96f7ffdc4b059bf4eadce3978443e2e99d3e1"
+source = "git+https://github.com/ClankPan/ssd-vectune?branch=main#18b782abca45627a42b2e66009cbbea4c0f28bbf"
 dependencies = [
  "anyhow",
  "bincode",
@@ -3193,24 +3163,18 @@ dependencies = [
  "bytemuck",
  "byteorder",
  "bytesize",
- "candle-core",
- "candle-nn",
- "candle-transformers",
  "clap",
  "ext-sort",
  "indicatif",
  "itertools 0.13.0",
- "kd-tree",
  "memmap2",
  "ndarray",
- "num-traits",
  "parking_lot 0.11.2",
  "rand",
  "rayon",
  "rustc-hash",
  "serde",
  "serde_json",
- "tokenizers 0.20.0",
  "vectune",
 ]
 
@@ -3429,37 +3393,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokenizers"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8a24d7f7d6be5b9d1377418b893ab1808af0074f5d1bb2c64784452ddd2aa70"
-dependencies = [
- "aho-corasick",
- "derive_builder",
- "esaxx-rs",
- "fancy-regex",
- "getrandom",
- "itertools 0.12.1",
- "lazy_static",
- "log",
- "macro_rules_attribute",
- "monostate",
- "paste",
- "rand",
- "rayon",
- "rayon-cond",
- "regex",
- "regex-syntax",
- "serde",
- "serde_json",
- "spm_precompiled",
- "thiserror",
- "unicode-normalization-alignments",
- "unicode-segmentation",
- "unicode_categories",
-]
-
-[[package]]
 name = "tokio"
 version = "1.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3524,17 +3457,6 @@ name = "toml_edit"
 version = "0.19.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
-dependencies = [
- "indexmap",
- "toml_datetime",
- "winnow",
-]
-
-[[package]]
-name = "toml_edit"
-version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a8534fd7f78b5405e860340ad6575217ce99f38d4d5c8f2442cb5ecb50090e1"
 dependencies = [
  "indexmap",
  "toml_datetime",

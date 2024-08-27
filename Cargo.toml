@@ -6,4 +6,5 @@ members = [
 ]
 resolver = "2"
 
-[patch.crates-io]
+# [patch.crates-io]
+# vectune = {git = "https://github.com/ClankPan/Vectune", rev = "d785917e973dbb011992ed3ee98406c707d7ca80", features = []}
