@@ -12,15 +12,15 @@ pub mod point;
 
 pub mod graph;
 
-use candid::Principal;
 use build_api::StatusForFrontend;
+use candid::Principal;
 
 // use simd_point::Point as SIMDPoint;
 
 /* types */
+use consts::*;
 use thread_locals::*;
 use types::*;
-use consts::*;
 
 /* Set custom random function */
 use getrandom::register_custom_getrandom;

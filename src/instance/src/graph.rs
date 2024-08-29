@@ -15,11 +15,11 @@ pub struct Graph<S: StorageTrait> {
     size_r: usize,
     size_a: f32,
 
-    graph_store: GraphStore<S>,
+    pub graph_store: GraphStore<S>,
     start_node_index: u32, // note: これは、headerに格納されているので、upgrade-stable
 }
 
-impl <S: StorageTrait> Graph<S> {
+impl<S: StorageTrait> Graph<S> {
     pub fn suspect(&mut self, id: u32) {
         CEMETERY.with(|list| list.borrow_mut().push(&id).expect("faile to push item"));
     }
@@ -43,7 +43,6 @@ impl<S: StorageTrait> Graph<S> {
     pub fn set_size_l(&mut self, size_l: usize) {
         self.size_l = size_l;
     }
-
 }
 
 impl<S: StorageTrait, P: PointInterface> GraphInterface<P> for Graph<S> {
@@ -54,22 +53,35 @@ impl<S: StorageTrait, P: PointInterface> GraphInterface<P> for Graph<S> {
                 trap("Metadata is not Running")
             };
             let new_index = running_metadata.current_max_unsed_index;
-            running_metadata.num_vectors += 1;
+            running_metadata.current_max_unsed_index += 1;
 
-            metadata.set(Metadata::Running(running_metadata)).expect("cannot set new metadata");
+            metadata
+                .set(Metadata::Running(running_metadata))
+                .expect("cannot set new metadata");
             new_index
         });
 
-        self.graph_store.write_node(&new_index, &point.to_f32_vec(), &vec![]).expect("fail to write node");
+        self.graph_store
+            .write_node(&new_index, &point.to_f32_vec(), &vec![])
+            .expect("fail to write node");
+
+        // let node = self.graph_store.read_node(&new_index).unwrap();
+        // ic_cdk::println!("in alloc: {:?}", node);
+
+        // wip todo storage上のheaderに書き込む
+        // self.graph_store.set_num_vectors();
+
+        BACKLINKS_MAP.with(|map| {
+            let mut map = map.borrow_mut();
+            map.insert(new_index, Backlinks(HashSet::new()));
+        });
 
         // grow is called in storage.write()
 
         new_index.try_into().expect("cannot convert u64 to u32")
-
     }
 
     fn free(&mut self, id: &u32) {
-
         FREE_ID_LIST.with(|list| {
             let list = list.borrow_mut();
             list.push(id).expect("fail, push to free id list");
@@ -82,13 +94,14 @@ impl<S: StorageTrait, P: PointInterface> GraphInterface<P> for Graph<S> {
             let mut map = map.borrow_mut();
 
             for deleted_id in edge_set {
-                let mut backlinks_set: HashSet<u32> = map.get(&deleted_id).unwrap().0.into_iter().collect();
+                let mut backlinks_set: HashSet<u32> =
+                    map.get(&deleted_id).unwrap().0.into_iter().collect();
                 backlinks_set.remove(id);
                 map.insert(deleted_id, Backlinks(backlinks_set));
             }
 
+            map.insert(*id, Backlinks(vec![].into_iter().collect()))
         });
-
     }
 
     fn cemetery(&self) -> Vec<u32> {
@@ -100,12 +113,18 @@ impl<S: StorageTrait, P: PointInterface> GraphInterface<P> for Graph<S> {
     }
 
     fn clear_cemetery(&mut self) {
-        SVec::<u32, VMemory>::new(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(CEMETERY_MEMORY_ID)))).unwrap();
+        SVec::<u32, VMemory>::new(
+            MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(CEMETERY_MEMORY_ID))),
+        )
+        .unwrap();
     }
 
     fn backlink(&self, id: &u32) -> Vec<u32> {
         let backlinks = BACKLINKS_MAP.with(|map| {
-            map.borrow().get(id).expect("id does not exsit in backlinks map").0
+            map.borrow()
+                .get(id)
+                .expect("id does not exsit in backlinks map")
+                .0
         });
         backlinks.into_iter().collect()
     }
@@ -136,7 +155,11 @@ impl<S: StorageTrait, P: PointInterface> GraphInterface<P> for Graph<S> {
     fn overwirte_out_edges(&mut self, id: &u32, new_edges: Vec<u32>) {
         let (point, prev_edges): (P, Vec<u32>) = self.get(id);
 
-        self.graph_store.write_node(id, &point.to_f32_vec(), &new_edges).expect("fail to write node");
+        // ic_cdk::println!("id: {}\nprev_edges: {:?}\nnew_edges: {:?}", id, prev_edges, new_edges);
+
+        self.graph_store
+            .write_node(id, &point.to_f32_vec(), &new_edges)
+            .expect("fail to write node");
 
         let prev_edge_set: HashSet<u32> = prev_edges.into_iter().collect();
         let new_edge_set: HashSet<u32> = new_edges.into_iter().collect();
@@ -144,17 +167,21 @@ impl<S: StorageTrait, P: PointInterface> GraphInterface<P> for Graph<S> {
         let deleted: HashSet<_> = prev_edge_set.difference(&new_edge_set).cloned().collect();
         let inserted: HashSet<_> = new_edge_set.difference(&prev_edge_set).cloned().collect();
 
+        // ic_cdk::println!("inserted{:?}", inserted.clone().into_iter().collect::<Vec<u32>>());
+
         BACKLINKS_MAP.with(|map| {
             let mut map = map.borrow_mut();
 
             for deleted_id in deleted {
-                let mut backlinks_set: HashSet<u32> = map.get(&deleted_id).unwrap().0.into_iter().collect();
+                let mut backlinks_set: HashSet<u32> =
+                    map.get(&deleted_id).unwrap().0.into_iter().collect();
                 backlinks_set.remove(id);
                 map.insert(deleted_id, Backlinks(backlinks_set));
             }
 
             for inserted_id in inserted {
-                let mut backlinks_set: HashSet<u32> = map.get(&inserted_id).unwrap().0.into_iter().collect();
+                let mut backlinks_set: HashSet<u32> =
+                    map.get(&inserted_id).unwrap().0.into_iter().collect();
                 backlinks_set.insert(*id);
                 map.insert(inserted_id, Backlinks(backlinks_set));
             }

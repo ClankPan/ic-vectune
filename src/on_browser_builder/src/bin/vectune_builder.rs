@@ -1,10 +1,13 @@
 use std::{
-    borrow::Cow, cell::RefCell, collections::HashSet, sync::{Arc, RwLock}
+    borrow::Cow,
+    cell::RefCell,
+    collections::HashSet,
+    sync::{Arc, RwLock},
 };
 
 use log::debug;
 
-use candid::{Encode, Decode};
+use candid::{Decode, Encode};
 
 use bitvec::prelude::*;
 
@@ -16,10 +19,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 
 use anyhow::{Error, Result};
 use ic_stable_structures::{storable::Bound, BTreeMap as StableBTreeMap, Memory, Storable};
-use ssd_vectune::{
-    graph_store::GraphStore,
-    storage::StorageTrait,
-};
+use ssd_vectune::{graph_store::GraphStore, storage::StorageTrait};
 
 // candle lib
 use candle_core::{DType, Device, Tensor};
@@ -51,10 +51,14 @@ impl EmbeddingModel {
         Ok(EmbeddingModel::_new().map_err(|m| JsError::new(&m.to_string()))?)
     }
 
-    pub fn get_embeddings(&mut self, input :JsValue) -> Result<JsValue, JsError> {
+    pub fn get_embeddings(&mut self, input: JsValue) -> Result<JsValue, JsError> {
         let sentences: Vec<String> =
             serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
-        Ok(serde_wasm_bindgen::to_value(&self._get_embeddings(&sentences, true).map_err(|m| JsError::new(&m.to_string()))?)?)
+        Ok(serde_wasm_bindgen::to_value(
+            &self
+                ._get_embeddings(&sentences, true)
+                .map_err(|m| JsError::new(&m.to_string()))?,
+        )?)
     }
 
     fn _new() -> Result<EmbeddingModel> {
@@ -207,49 +211,48 @@ impl Memory for ICMemory {
 //     }
 // }
 
-
 pub struct ICRBTree<K, V>
 where
-  K: Ord + Storable + Clone,
-  V: Storable,
+    K: Ord + Storable + Clone,
+    V: Storable,
 {
-  ic_rbtree: StableBTreeMap<K,V, ICMemory>,
+    ic_rbtree: StableBTreeMap<K, V, ICMemory>,
 }
 
 impl<K, V> ICRBTree<K, V>
 where
-  K: Ord + Storable + Clone,
-  V: Storable,
+    K: Ord + Storable + Clone,
+    V: Storable,
 {
-  pub fn new() -> Self {
-      let ic_rbtree = StableBTreeMap::new(ICMemory {
-          mem: RefCell::new(vec![]),
-      });
-      Self { ic_rbtree }
-  }
+    pub fn new() -> Self {
+        let ic_rbtree = StableBTreeMap::new(ICMemory {
+            mem: RefCell::new(vec![]),
+        });
+        Self { ic_rbtree }
+    }
 
-  pub fn insert(&mut self, key: K, value: V) -> Option<V> {
-      self.ic_rbtree.insert(key, value)
-  }
+    pub fn insert(&mut self, key: K, value: V) -> Option<V> {
+        self.ic_rbtree.insert(key, value)
+    }
 
-  pub fn get(&mut self, key: K) -> Option<V> {
-      self.ic_rbtree.get(&key)
-  }
+    pub fn get(&mut self, key: K) -> Option<V> {
+        self.ic_rbtree.get(&key)
+    }
 
-  pub fn build_from_vec(items: Vec<(K, V)>) -> Self {
-      let mut ic_rbtree = StableBTreeMap::new(ICMemory {
-          mem: RefCell::new(vec![]),
-      });
-      for (k, v) in items.into_iter() {
-          let _ = ic_rbtree.insert(k, v);
-      }
+    pub fn build_from_vec(items: Vec<(K, V)>) -> Self {
+        let mut ic_rbtree = StableBTreeMap::new(ICMemory {
+            mem: RefCell::new(vec![]),
+        });
+        for (k, v) in items.into_iter() {
+            let _ = ic_rbtree.insert(k, v);
+        }
 
-      Self { ic_rbtree }
-  }
+        Self { ic_rbtree }
+    }
 
-  pub fn into_memory(self) -> Vec<u8> {
-      self.ic_rbtree.into_memory().mem.into_inner()
-  }
+    pub fn into_memory(self) -> Vec<u8> {
+        self.ic_rbtree.into_memory().mem.into_inner()
+    }
 }
 
 struct Storage {
@@ -309,7 +312,6 @@ impl Storable for Backlinks {
     //     is_fixed_size: false,
     // };
     const BOUND: Bound = Bound::Unbounded;
-
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Item {
@@ -371,7 +373,10 @@ impl Vectune {
                     sentence: item.sentence.clone(),
                     metadata: item.metadata,
                 };
-                let _ = data_map.insert(index, serde_json::to_string(&response_value_of_search).unwrap());
+                let _ = data_map.insert(
+                    index,
+                    serde_json::to_string(&response_value_of_search).unwrap(),
+                );
 
                 // Vectorize text if embeddings is null
                 if let Some(embeddings) = item.embedding {
@@ -389,10 +394,8 @@ impl Vectune {
                     Ok(embeddings) => Ok(embeddings[0].clone()),
                     Err(err) => Err(err),
                 }
-
             })
             .collect::<Result<Vec<Vec<f32>>, _>>()?;
-
 
         println!("finish embedding");
 
@@ -409,22 +412,30 @@ impl Vectune {
 
         // let (medoid_index, backlinks) =
         //     ssd_vectune::single_index::single_index(&vector_reader, &graph_on_storage, self.seed);
-        let (indexed_points, medoid_index, backlinks): (Vec<(Point, Vec<u32>)>, u32, Vec<Vec<u32>>) =
-            vectune::Builder::default()
-                .set_seed(self.seed)
-                .set_a(2.0)
-                // .set_r(3)
-                // .progress(ProgressBar::new(1000))
-                .build(vectors.into_iter().map(|vector| Point::from_f32_vec(vector)).collect());
+        let (indexed_points, medoid_index, backlinks): (
+            Vec<(Point, Vec<u32>)>,
+            u32,
+            Vec<Vec<u32>>,
+        ) = vectune::Builder::default()
+            .set_seed(self.seed)
+            .set_a(2.0)
+            // .set_r(3)
+            // .progress(ProgressBar::new(1000))
+            .build(
+                vectors
+                    .into_iter()
+                    .map(|vector| Point::from_f32_vec(vector))
+                    .collect(),
+            );
 
         indexed_points
-                .into_iter()
-                .enumerate()
-                .for_each(|(node_id, (point, edges))| {
-                    graph_on_storage
-                        .write_node(&(node_id as u32), &point.to_f32_vec(), &edges)
-                        .unwrap();
-                });
+            .into_iter()
+            .enumerate()
+            .for_each(|(node_id, (point, edges))| {
+                graph_on_storage
+                    .write_node(&(node_id as u32), &point.to_f32_vec(), &edges)
+                    .unwrap();
+            });
 
         Ok(Vectune::serialize(
             data_map,
@@ -459,43 +470,42 @@ impl Vectune {
         .into_memory();
 
         let data = MemoryAndMetadata {
-            medoid_index, 
-            num_vectors, 
-            vector_dim, 
-            edge_degrees, 
-            serialized_data_map, 
-            serialized_graph_store, 
+            medoid_index,
+            num_vectors,
+            vector_dim,
+            edge_degrees,
+            serialized_data_map,
+            serialized_graph_store,
             serialized_backlinks_map,
         };
 
         bincode::serialize(&data).unwrap()
-
     }
 }
 
-
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct MemoryAndMetadata {
-    medoid_index: u32, 
-    num_vectors: u32, 
-    vector_dim: u32, 
-    edge_degrees: u32, 
-    serialized_data_map: Vec<u8>, 
-    serialized_graph_store: Vec<u8>, 
-    serialized_backlinks_map: Vec<u8>
+    medoid_index: u32,
+    num_vectors: u32,
+    vector_dim: u32,
+    edge_degrees: u32,
+    serialized_data_map: Vec<u8>,
+    serialized_graph_store: Vec<u8>,
+    serialized_backlinks_map: Vec<u8>,
 }
 
 #[wasm_bindgen]
 pub fn deserialize_memory_and_metadata(input: JsValue) -> Result<JsValue, JsError> {
-    let bytes: Vec<u8> = serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
+    let bytes: Vec<u8> =
+        serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
     let data: MemoryAndMetadata = bincode::deserialize(&bytes).unwrap();
     Ok(serde_wasm_bindgen::to_value(&data)?)
 }
 
-
 #[wasm_bindgen]
 pub fn extract_false_indices_from_serialized_bitvec(input: JsValue) -> Result<JsValue, JsError> {
-    let bytes: Vec<u8> = serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
+    let bytes: Vec<u8> =
+        serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
     let bitvec: BitVec<u8, Lsb0> = bincode::deserialize(&bytes)?;
 
     let indices: Vec<usize> = bitvec

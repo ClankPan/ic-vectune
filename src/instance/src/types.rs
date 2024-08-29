@@ -10,6 +10,7 @@ pub use simd_point::Point as SIMDPoint;
 use ssd_vectune::storage::StorageTrait;
 use std::borrow::Cow;
 use std::collections::HashSet;
+use std::mem::size_of;
 
 use crate::{simd_point, WASM_PAGE_SIZE};
 
@@ -31,12 +32,11 @@ pub struct LoadingMetadata {
     pub(crate) name: String,
     pub(crate) version: String,
     pub(crate) db_key: String,
-
-    pub(crate) medoid_node_index: u32,
-    pub(crate) sector_byte_size: u64,
-    pub(crate) num_vectors: u64,
-    pub(crate) vector_dim: u64,
-    pub(crate) edge_degrees: u64,
+    // pub(crate) medoid_node_index: u32,
+    // pub(crate) sector_byte_size: u64,
+    // pub(crate) num_vectors: u64,
+    // pub(crate) vector_dim: u64,
+    // pub(crate) edge_degrees: u64,
 }
 
 #[derive(CandidType, Deserialize, Clone)]
@@ -44,12 +44,11 @@ pub struct RunningMetadata {
     pub(crate) name: String,
     pub(crate) version: String,
 
-    pub(crate) medoid_node_index: u32,
-    pub(crate) sector_byte_size: u64,
-    pub(crate) num_vectors: u64,
-    pub(crate) vector_dim: u64,
-    pub(crate) edge_degrees: u64,
-
+    // pub(crate) medoid_node_index: u32,
+    // pub(crate) sector_byte_size: u64,
+    // pub(crate) num_vectors: u64,
+    // pub(crate) vector_dim: u64,
+    // pub(crate) edge_degrees: u64,
     pub(crate) current_max_unsed_index: u32,
 }
 
@@ -186,6 +185,7 @@ impl StorageTrait for Storage {
         if num_pages > current_page_size {
             self.storage_mem.grow(num_pages - current_page_size);
         }
+        self.storage_mem.write(offset, src);
     }
 }
 
@@ -289,34 +289,32 @@ impl Storable for IcStatus {
 pub enum ChunkType {
     Graph,
     DataMap,
-    BacklinksMap
+    BacklinksMap,
 }
 
-
-type HeaderField = ( String, String );
+type HeaderField = (String, String);
 
 #[derive(CandidType, candid::Deserialize, Debug)]
 pub struct HttpRequest {
     pub(crate) method: String,
     pub(crate) url: String,
     pub(crate) headers: Vec<HeaderField>,
-    pub(crate) body: Vec<u8>
+    pub(crate) body: Vec<u8>,
 }
 #[derive(CandidType, candid::Deserialize)]
 pub struct HttpResponse {
     pub(crate) status_code: u16,
     pub(crate) headers: Vec<HeaderField>,
-    pub(crate) body: Vec<u8>
+    pub(crate) body: Vec<u8>,
 }
 
 // #[derive(serde::Serialize, serde::Deserialize)]
 // struct SearchQuery(Vec<f32>);
 
-#[derive(CandidType)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(CandidType, serde::Serialize, serde::Deserialize)]
 pub struct SearchResponse {
-  pub(crate) similarity: f32,
-  pub(crate) data: String
+    pub(crate) similarity: f32,
+    pub(crate) data: String,
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
@@ -337,15 +335,13 @@ impl Storable for Backlinks {
     //     is_fixed_size: false,
     // };
     const BOUND: Bound = Bound::Unbounded;
-
 }
-
 
 #[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
 pub enum OptType {
-    Delete(u32),
-    Modify(u32, String),
-    Insert(u32, String),
+    Delete,
+    Modify(String),
+    Insert(String),
 }
 
 impl Storable for OptType {
@@ -357,9 +353,5 @@ impl Storable for OptType {
         Decode!(bytes.as_ref(), Self).unwrap()
     }
 
-    // const BOUND: Bound = Bound::Bounded {
-    //     max_size: 125_000_000, // max size, 1 billion bits
-    //     is_fixed_size: false,
-    // };
     const BOUND: Bound = Bound::Unbounded;
 }

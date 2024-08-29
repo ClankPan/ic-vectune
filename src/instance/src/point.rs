@@ -1,13 +1,12 @@
 use vectune::PointInterface;
 
-
 // #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 #[derive(candid::CandidType, candid::Deserialize, Clone, Debug)]
 pub struct Point(Vec<f32>);
 
 impl PointInterface for Point {
     fn distance(&self, other: &Self) -> f32 {
-      -cosine_similarity(&self, &other) + 1.0 
+        -cosine_similarity(&self, &other) + 1.0
     }
 
     fn add(&self, other: &Self) -> Self {
@@ -39,30 +38,30 @@ impl PointInterface for Point {
 fn dot_product(vec1: &Point, vec2: &Point) -> f32 {
     assert_eq!(vec1.0.len(), vec2.0.len());
     let dim: usize = vec1.0.len();
-  let mut result = 0.0;
-  for i in 0..dim {
-      result += vec1.0[i] * vec2.0[i];
-  }
-  result
+    let mut result = 0.0;
+    for i in 0..dim {
+        result += vec1.0[i] * vec2.0[i];
+    }
+    result
 }
 
 fn norm(vec: &Point) -> f32 {
     let dim = vec.0.len();
-  let mut result = 0.0;
-  for i in 0..dim {
-      result += vec.0[i] * vec.0[i];
-  }
-  result.sqrt()
+    let mut result = 0.0;
+    for i in 0..dim {
+        result += vec.0[i] * vec.0[i];
+    }
+    result.sqrt()
 }
 
 fn cosine_similarity(vec1: &Point, vec2: &Point) -> f32 {
-  let dot = dot_product(vec1, vec2);
-  let norm1 = norm(vec1);
-  let norm2 = norm(vec2);
+    let dot = dot_product(vec1, vec2);
+    let norm1 = norm(vec1);
+    let norm2 = norm(vec2);
 
-  if norm1 == 0.0 || norm2 == 0.0 {
-      return 0.0;
-  }
+    if norm1 == 0.0 || norm2 == 0.0 {
+        return 0.0;
+    }
 
-  dot / (norm1 * norm2)
+    dot / (norm1 * norm2)
 }

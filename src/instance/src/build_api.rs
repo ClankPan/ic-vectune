@@ -1,4 +1,4 @@
-use crate::{auth::*, consts::*, thread_locals::*, types::*};
+use crate::{auth::*, consts::*, service_api::*, thread_locals::*, types::*};
 use bitvec::prelude::*;
 use candid::Principal;
 use ic_cdk::api::management_canister::main::{CanisterIdRecord, CanisterStatusResponse};
@@ -61,12 +61,11 @@ async fn start_loading(
             name,
             version,
             db_key,
-
-            medoid_node_index,
-            sector_byte_size,
-            num_vectors,
-            vector_dim,
-            edge_degrees,
+            // medoid_node_index,
+            // sector_byte_size,
+            // num_vectors,
+            // vector_dim,
+            // edge_degrees,
         }));
     });
 
@@ -99,22 +98,25 @@ async fn upload_chunk(chunk: Vec<u8>, chunk_index: u64, chunk_type: ChunkType) {
             trap("Metadata is not Loading")
         };
         let (uploaded_chunks_serialized, memory_id): (&mut Vec<u8>, u8) = match chunk_type {
-            ChunkType::Graph => {
-                (&mut loading_metadata.uploaded_graph_chunks, VAMANA_GRAPH_MEMORY_ID)
-            },
-            ChunkType::DataMap =>{
-                (&mut loading_metadata.uploaded_datamap_chunks, DATA_MAP_MEMORY_ID)
-            },
-            ChunkType::BacklinksMap => {
-               ( &mut loading_metadata.uploaded_backlinks_chunks, BACKLINKS_MEMORY_ID)
-            },
+            ChunkType::Graph => (
+                &mut loading_metadata.uploaded_graph_chunks,
+                VAMANA_GRAPH_MEMORY_ID,
+            ),
+            ChunkType::DataMap => (
+                &mut loading_metadata.uploaded_datamap_chunks,
+                DATA_MAP_MEMORY_ID,
+            ),
+            ChunkType::BacklinksMap => (
+                &mut loading_metadata.uploaded_backlinks_chunks,
+                BACKLINKS_MEMORY_ID,
+            ),
         };
-        let mut uploaded_chunks: BitVec<u8, Lsb0> = bincode::deserialize(&uploaded_chunks_serialized).unwrap();
+        let mut uploaded_chunks: BitVec<u8, Lsb0> =
+            bincode::deserialize(&uploaded_chunks_serialized).unwrap();
 
         assert!(chunk.len() <= loading_metadata.chunk_byte_size as usize);
 
-        let storage_mem =
-            MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(memory_id)));
+        let storage_mem = MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(memory_id)));
         let offset = loading_metadata.chunk_byte_size * chunk_index;
         let src = &chunk[..];
 
@@ -134,15 +136,9 @@ fn missing_chunks(section: u64, chunk_type: ChunkType) -> Option<Vec<u8>> {
             trap("Metadata is not Loading")
         };
         let uploaded_chunks: &Vec<u8> = match chunk_type {
-            ChunkType::Graph => {
-                &loading_metadata.uploaded_graph_chunks
-            },
-            ChunkType::DataMap =>{
-                &loading_metadata.uploaded_datamap_chunks
-            },
-            ChunkType::BacklinksMap => {
-                &loading_metadata.uploaded_backlinks_chunks
-            },
+            ChunkType::Graph => &loading_metadata.uploaded_graph_chunks,
+            ChunkType::DataMap => &loading_metadata.uploaded_datamap_chunks,
+            ChunkType::BacklinksMap => &loading_metadata.uploaded_backlinks_chunks,
         };
 
         let start = MISSING_CHUNKS_RESPONCE_SIZE * section as usize;
@@ -151,10 +147,7 @@ fn missing_chunks(section: u64, chunk_type: ChunkType) -> Option<Vec<u8>> {
             return None;
         }
 
-        let end = std::cmp::min(
-            start + MISSING_CHUNKS_RESPONCE_SIZE,
-            uploaded_chunks.len(),
-        );
+        let end = std::cmp::min(start + MISSING_CHUNKS_RESPONCE_SIZE, uploaded_chunks.len());
 
         Some(uploaded_chunks[start..end].to_vec())
     })
@@ -184,16 +177,19 @@ async fn start_running() {
             .chain(uploaded_backlinks_chunks.iter())
             .all(|bit| *bit);
 
+        let graph = load_graph();
+        let num_vectors = graph.graph_store.num_vectors();
+
         if is_done {
             let _ = metadata.set(Metadata::Running(RunningMetadata {
                 name: loading_metadata.name,
                 version: loading_metadata.version,
-                medoid_node_index: loading_metadata.medoid_node_index,
-                sector_byte_size: loading_metadata.sector_byte_size,
-                num_vectors: loading_metadata.num_vectors,
-                vector_dim: loading_metadata.vector_dim,
-                edge_degrees: loading_metadata.edge_degrees,
-                current_max_unsed_index: loading_metadata.num_vectors.try_into().expect("cannot convert u64 to u32"),
+                // medoid_node_index: loading_metadata.medoid_node_index,
+                // sector_byte_size: loading_metadata.sector_byte_size,
+                // num_vectors: loading_metadata.num_vectors,
+                // vector_dim: loading_metadata.vector_dim,
+                // edge_degrees: loading_metadata.edge_degrees,
+                current_max_unsed_index: num_vectors.try_into().expect("cannot convert u64 to u32"),
             }));
         } else {
             trap("uploading chunk is not done")
@@ -203,23 +199,23 @@ async fn start_running() {
 
 #[update(guard = "is_owner")]
 async fn reset() {
-
     METADATA.with(|metadata| {
         let mut metadata = metadata.borrow_mut();
 
         let new_metaadta = match metadata.get() {
             Metadata::None => panic!("unexpected path"),
-            Metadata::Initial(_) => {return},
-            Metadata::Loading(loading_metadata) => {
-                Metadata::Initial(InitialMetadata{name: loading_metadata.name.clone(), version: loading_metadata.version.clone()})
-            },
-            Metadata::Running(running_metadata) => {
-                Metadata::Initial(InitialMetadata{name: running_metadata.name.clone(), version: running_metadata.version.clone()})
-            },
+            Metadata::Initial(_) => return,
+            Metadata::Loading(loading_metadata) => Metadata::Initial(InitialMetadata {
+                name: loading_metadata.name.clone(),
+                version: loading_metadata.version.clone(),
+            }),
+            Metadata::Running(running_metadata) => Metadata::Initial(InitialMetadata {
+                name: running_metadata.name.clone(),
+                version: running_metadata.version.clone(),
+            }),
         };
 
         let _ = metadata.set(new_metaadta);
-
     })
 }
 
@@ -242,7 +238,7 @@ fn get_prev_status() -> StatusForFrontend {
         memory_size: status.memory_size,
         cycles: status.cycles,
         idle_cycles_burned_per_day: status.idle_cycles_burned_per_day,
-      
+
         // For DB
         db_key,
         hnsw_chunk_len: 0,
@@ -332,7 +328,7 @@ pub struct StatusForFrontend {
     cycles: u128,
     /// Amount of cycles burned per day.
     idle_cycles_burned_per_day: u128,
-  
+
     // For DB
     db_key: String,
     hnsw_chunk_len: u32,
@@ -370,7 +366,7 @@ async fn get_current_status() -> StatusForFrontend {
         memory_size: status.memory_size,
         cycles: status.cycles,
         idle_cycles_burned_per_day: status.idle_cycles_burned_per_day,
-      
+
         // For DB
         db_key,
         hnsw_chunk_len: 0,

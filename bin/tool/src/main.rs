@@ -1,26 +1,26 @@
-use std::{fs::File, sync::Arc, time::Instant};
+pub mod ic_memory;
+
+use std::{
+    fs::File,
+    io::{Read, Write},
+    path::Path,
+    sync::Arc,
+};
 
 use anyhow::Result;
 use bitvec::prelude::*;
 use bytesize::KIB;
-use candid::{CandidType, Decode, Encode};
+#[cfg(feature = "embedding-command")]
+use candid::CandidType;
+use candid::{Decode, Encode};
 use futures::stream::{self, StreamExt};
 use ic_agent::{export::Principal, identity, Agent};
 use memmap2::Mmap;
-use rand::{thread_rng, Rng};
 // use serde::Deserialize;
-use ssd_vectune::{
-    graph::GraphMetadata,
-    original_vector_reader::{read_ivecs, OriginalVectorReader, OriginalVectorReaderTrait},
-};
 use tokio;
 
+use ic_memory::*;
 //  cargo run --release --bin uploader -- upload  <graph path> <graph metadata path> <canister id> --name clankpan
-
-enum UP {
-    Done,
-    Continue(BitVec<u8>),
-}
 
 struct ChunkReader {
     mmap: Mmap,
@@ -57,6 +57,14 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Commands {
+    BuildIcStructure {
+        #[arg(long)]
+        backlinks_vec_path: String,
+        #[arg(long)]
+        metadata_vec_path: String,
+        #[arg(long)]
+        dir: String,
+    },
     /// Executes the build process, including merge-index and gorder
     SetupUpload {
         #[arg(long)]
@@ -68,23 +76,35 @@ enum Commands {
         #[arg(long, default_value = "1024")]
         chunk_kib_size: usize,
 
-        source_data_path: String,
-        graph_bin_path: String,
-        backlinks_bin_path: String,
-
+        #[arg(long)]
+        datamap_raw_memory_path: String,
+        #[arg(long)]
+        graph_raw_memory_path: String,
+        #[arg(long)]
+        backlinks_map_raw_memory_path: String,
+        #[arg(long)]
         target_canister_id: String,
     },
+    #[cfg(feature = "embedding-command")]
     Search {
         #[arg(long)]
         ic: bool,
         #[arg(long)]
-        simd: bool,
-        #[arg(long, default_value = "./query_set/query.public.10K.fbin")]
-        query_path: String,
-        #[arg(long, default_value = "./query_set/gt/deep100M_groundtruth.ivecs")]
-        ground_truth_path: String,
-
         target_canister_id: String,
+        #[arg(long)]
+        query_text: String,
+        #[arg(long)]
+        model_dir: String,
+    },
+
+    Debug {
+        #[arg(long)]
+        ic: bool,
+        #[arg(long)]
+        target_canister_id: String,
+
+        #[arg(long, default_value = "default")]
+        name: String,
     },
 }
 
@@ -93,496 +113,489 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::Debug {
+            ic,
+            target_canister_id,
+            name,
+        } => {
+            let agent = Arc::new(get_agent(&name, ic).await?);
+            let target_canister_id = Principal::from_text(target_canister_id)?;
+
+            let method_name = "debug_get_raw_datamap";
+            let response = agent
+                .query(&target_canister_id, method_name)
+                .with_arg(Encode!()?)
+                .call()
+                .await?;
+            let raw_memory = Decode!(&response, Vec<u8>)?;
+
+            println!("raw_memory len: {}", raw_memory.len());
+
+            let metadata_map = ICRBTree::<u32, String>::load_memory(raw_memory);
+
+            println!("{:?}", metadata_map.get_items());
+
+            Ok(())
+        }
+        Commands::BuildIcStructure {
+            dir,
+            backlinks_vec_path,
+            metadata_vec_path,
+        } => {
+            let dir = Path::new(&dir);
+            let backlinks_vec: Vec<Vec<u32>> =
+                bincode::deserialize(&open_file_as_bytes(Path::new(&backlinks_vec_path))?)?;
+            let metadata_vec: Vec<String> =
+                bincode::deserialize(&open_file_as_bytes(Path::new(&metadata_vec_path))?)?;
+
+            let backlinks_map = ICRBTree::<u32, Backlinks>::build_from_vec(
+                backlinks_vec
+                    .into_iter()
+                    .enumerate()
+                    .map(|(k, v)| (k as u32, Backlinks(v.into_iter().collect())))
+                    .collect(),
+            );
+            let metadata_map = ICRBTree::<u32, String>::build_from_vec(
+                metadata_vec
+                    .into_iter()
+                    .enumerate()
+                    .map(|(k, v)| (k as u32, v))
+                    .collect(),
+            );
+
+            // println!("{:?}", backlinks_map.get_items());
+            // println!("{:?}", metadata_map.get_items());
+
+            let backlinks_map_raw_memory = backlinks_map.into_memory();
+            let metadata_map_raw_memory = metadata_map.into_memory();
+
+            // println!("{:?}", backlinks_map_raw_memory);
+
+            File::create(dir.join(format!("backlinks_map_raw_memory.bin")))?
+                .write_all(&backlinks_map_raw_memory)?;
+            File::create(dir.join(format!("metadata_map_raw_memory.bin")))?
+                .write_all(&metadata_map_raw_memory)?;
+
+            // let backlinks_map = ICRBTree::<u32, Backlinks>::load_memory(backlinks_map_raw_memory);
+            // let metadata_map =  ICRBTree::<u32, String>::load_memory(metadata_map_raw_memory);
+
+            // println!("{:?}", backlinks_map.get_items());
+            // println!("{:?}", metadata_map.get_items());
+
+            Ok(())
+        }
         Commands::SetupUpload {
             ic,
             name,
             chunk_kib_size,
-            source_data_path,
             target_canister_id,
-            graph_bin_path,
-            backlinks_bin_path
+
+            datamap_raw_memory_path,
+            graph_raw_memory_path,
+            backlinks_map_raw_memory_path,
         } => {
-            // let agent = Arc::new(get_agent(&name, ic).await?);
-            // let target_canister_id = Principal::from_text(target_canister_id)?;
-            // let chunk_byte_size = chunk_kib_size * KIB as usize;
+            let agent = Arc::new(get_agent(&name, ic).await?);
+            let target_canister_id = Principal::from_text(target_canister_id)?;
+            let chunk_byte_size = chunk_kib_size * KIB as usize;
 
-            // // let source_chunk_reader = Arc::new(ChunkReader::new(&source_data_path, chunk_byte_size)?);
-            // let graph_chunk_reader = Arc::new(ChunkReader::new(&source_data_path, chunk_byte_size)?);
-            // let graph_metadata = GraphMetadata::load(&graph_bin_path).unwrap();
+            let source_chunk_reader =
+                Arc::new(ChunkReader::new(&datamap_raw_memory_path, chunk_byte_size)?);
+            let graph_chunk_reader =
+                Arc::new(ChunkReader::new(&graph_raw_memory_path, chunk_byte_size)?);
+            let backlinks_chunk_reader = Arc::new(ChunkReader::new(
+                &backlinks_map_raw_memory_path,
+                chunk_byte_size,
+            )?);
 
-            // let num_chunks = (chunk_reader.file_size() + chunk_byte_size - 1) / chunk_byte_size;
+            // let metadata_map =  ICRBTree::<u32, String>::load_memory(source_chunk_reader.read(0));
+            // println!("{:?}", metadata_map.get_items());
 
-            // assert!(chunk_reader.file_size() <= num_chunks * chunk_byte_size);
+            // println!("source_chunk_reader.read(0).len(): {}", source_chunk_reader.read(0).len());
+            // let _metadata_map =  ICRBTree::<u32, String>::load_memory(source_chunk_reader.read(0));
+            // println!("metadata_map {:?}", metadata_map.get_items());
+            // println!("backlinks_chunk_reader.file_size(): {}", backlinks_chunk_reader.file_size());
 
-            // println!(
-            //     "graph_metadata.edge_degrees {}",
-            //     graph_metadata.edge_degrees
-            // );
+            let num_datamap_chunks =
+                num_chunks(source_chunk_reader.file_size(), chunk_byte_size) as u64;
+            let num_graph_chunks =
+                num_chunks(graph_chunk_reader.file_size(), chunk_byte_size) as u64;
+            let num_backlinks_chunks =
+                num_chunks(backlinks_chunk_reader.file_size(), chunk_byte_size) as u64;
 
-            // println!("calling status_code..");
-            // match call_status_code(&agent, target_canister_id).await? {
-            //     0 => {
-            //         println!("calling initialize..");
-            //         call_initialize(
-            //             &agent,
-            //             target_canister_id,
-            //             num_chunks as u64,
-            //             chunk_byte_size as u64,
-            //             graph_metadata.medoid_node_index,
-            //             graph_metadata.sector_byte_size as u64,
-            //             graph_metadata.num_vectors as u64,
-            //             graph_metadata.vector_dim as u64,
-            //             // graph_metadata.edge_degrees as u64,
-            //             90,
-            //         )
-            //         .await?;
-            //     }
-            //     1 => {
-            //         println!("skip call_initialize")
-            //     }
-            //     2 => {
-            //         todo!()
-            //     }
-            //     _ => todo!(),
-            // }
+            // todo: Match with ic-vectune/on_browser_builder.
+            let db_key = String::from("aaaaaaa");
 
-            // println!("start loop");
+            println!("calling status_code..");
+            match call_status_code(&agent, target_canister_id).await? {
+                0 => {
+                    println!("calling initialize..");
+                    call_initialize(
+                        &agent,
+                        target_canister_id,
+                        num_graph_chunks,
+                        num_datamap_chunks,
+                        num_backlinks_chunks,
+                        chunk_byte_size as u64,
+                        db_key,
+                    )
+                    .await?;
+                }
+                1 => {
+                    println!("skip call_initialize")
+                }
+                2 => {
+                    todo!()
+                }
+                _ => todo!(),
+            }
 
-            // while let UP::Continue(uploaded_chunks) = {
-            //     println!("calling missing_chunks...");
-            //     let uploaded_chunks = get_missing_chunks(&agent, target_canister_id).await?;
-            //     let missing_counts = uploaded_chunks.iter().filter(|bit| !**bit).count();
+            println!("start loop");
 
-            //     assert!(chunk_reader.file_size() <= uploaded_chunks.len() * chunk_byte_size);
+            upload_raw_memory(
+                chunk_byte_size,
+                agent.clone(),
+                target_canister_id,
+                ChunkType::DataMap,
+                source_chunk_reader,
+            )
+            .await?;
+            upload_raw_memory(
+                chunk_byte_size,
+                agent.clone(),
+                target_canister_id,
+                ChunkType::Graph,
+                graph_chunk_reader,
+            )
+            .await?;
+            upload_raw_memory(
+                chunk_byte_size,
+                agent.clone(),
+                target_canister_id,
+                ChunkType::BacklinksMap,
+                backlinks_chunk_reader,
+            )
+            .await?;
 
-            //     match missing_counts {
-            //         0 => UP::Done,
-            //         _ => {
-            //             println!("missing_counts: {missing_counts}");
-            //             UP::Continue(uploaded_chunks)
-            //         }
-            //     }
-            // } {
-            //     let uploaded_chunks_len = uploaded_chunks.len();
-
-            //     let task_stream = stream::iter(
-            //         uploaded_chunks
-            //             .into_iter()
-            //             .enumerate()
-            //             .filter_map(|(index, bit)| if !bit { Some(index) } else { None }),
-            //     )
-            //     .map(|chunk_index| {
-            //         let agent = agent.clone();
-            //         let chunk_reader = chunk_reader.clone();
-            //         tokio::spawn(async move {
-            //             // Load chunk data from disk
-            //             let chunk_byte_data = chunk_reader.read(chunk_index);
-
-            //             // upload chunk into canister
-            //             let response = call_upload_chunk(
-            //                 &agent,
-            //                 target_canister_id,
-            //                 (chunk_byte_data, chunk_index as u64),
-            //             )
-            //             .await;
-            //             println!("chunk_index: {chunk_index}/{uploaded_chunks_len}");
-            //             match response {
-            //                 Ok(_) => {}
-            //                 Err(err) => {
-            //                     println!("{:?}", err);
-            //                 }
-            //             }
-            //         })
-            //     });
-
-            //     let _results: Vec<_> = task_stream.buffered(20).collect().await;
-            // }
+            let _ = agent
+                .update(&target_canister_id, "start_running")
+                .with_arg(Encode!()?)
+                .call_and_wait()
+                .await?;
 
             Ok(())
         }
+        #[cfg(feature = "embedding-command")]
         Commands::Search {
             ic,
-            simd,
-            query_path,
-            ground_truth_path,
+            query_text,
             target_canister_id,
+            model_dir,
         } => {
-            // let target_canister_id = Principal::from_text(target_canister_id)?;
+            let target_canister_id = Principal::from_text(target_canister_id)?;
+            let agent = Arc::new(get_anonymous_agent(ic).await?);
 
-            // let agent = Arc::new(get_anonymous_agent(ic).await?);
+            let model_dir = Path::new(&model_dir);
+            let mut weights = Vec::new();
+            File::open(model_dir.join("model.safetensors"))?.read_to_end(&mut weights)?;
 
-            // let query_vector_reader = OriginalVectorReader::new(&query_path)?;
-            // let groundtruth: Vec<Vec<u32>> = read_ivecs(&ground_truth_path).unwrap();
+            let mut config = Vec::new();
+            File::open(model_dir.join("config.json"))?.read_to_end(&mut config)?;
 
-            // let query_iter = 100;
-            // let mut total_time = 0;
-            // let mut rng = thread_rng();
+            let mut tokenizer = Vec::new();
+            File::open(model_dir.join("tokenizer.json"))?.read_to_end(&mut tokenizer)?;
+            let model_params = ssd_vectune::embed::ModelPrams {
+                weights,
+                config,
+                tokenizer,
+            };
 
-            // let mut hit_sum = 0;
-            // for query_index in 0..query_iter {
-            //     let random_query_index = rng.gen_range(0..query_vector_reader.get_num_vectors());
-            //     // let random_query_index = query_index;
-            //     let query_vector: Vec<f32> = query_vector_reader.read(&random_query_index).unwrap();
-            //     println!("query_index {query_index}");
+            let mut model = ssd_vectune::embed::EmbeddingModel::new(model_params)?;
 
-            //     let start = Instant::now();
+            let query_vector = model.get_embeddings(&vec![query_text], true).expect("msg");
 
-            //     let k_ann = call_search(&agent, target_canister_id, &query_vector, simd).await?;
+            let k_ann = call_search(&agent, target_canister_id, &query_vector[0]).await?;
 
-            //     let t = start.elapsed().as_millis();
-            //     total_time += t;
-
-            //     let result_top_5: Vec<u32> = k_ann.into_iter().map(|(_, i)| i).collect();
-            //     let top5_groundtruth = &groundtruth[random_query_index][0..5];
-            //     println!("{:?}\n{:?}", top5_groundtruth, result_top_5);
-            //     let mut hit = 0;
-            //     for res in result_top_5 {
-            //         if top5_groundtruth.contains(&res) {
-            //             hit += 1;
-            //         }
-            //     }
-            //     hit_sum += hit;
-
-            //     println!("hit: {}/{}\n", hit, top5_groundtruth.len());
-            // }
-
-            // println!(
-            //     "average query-time:  {} ms",
-            //     total_time as f32 / query_iter as f32
-            // );
-            // println!(
-            //     "average recall-rate: {} %",
-            //     (hit_sum as f32 / (query_iter * 5) as f32) * 100.0
-            // );
+            println!("{:?}", k_ann);
 
             Ok(())
         }
     }
 }
 
+#[derive(candid::CandidType, candid::Deserialize, Clone, Copy)]
+pub enum ChunkType {
+    Graph,
+    DataMap,
+    BacklinksMap,
+}
+enum UploadLoop {
+    Done,
+    Continue(BitVec<u8>),
+}
 
-// fn calculate_db_key() -> u64 {
-//     fn serialize(
-//         data_map: ICRBTree,
-//         graph_on_storage: GraphStore<Storage>,
-//         backlinks: Vec<Vec<u32>>,
-//         medoid_index: u32,
-//     ) -> Vec<u8> {
-//         let num_vectors = graph_on_storage.num_vectors() as u32;
-//         let vector_dim = graph_on_storage.vector_dim() as u32;
-//         let edge_degrees = graph_on_storage.max_edge_degrees() as u32;
+async fn upload_raw_memory(
+    chunk_byte_size: usize,
+    agent: Arc<Agent>,
+    target_canister_id: Principal,
+    chunk_type: ChunkType,
+    chunk_reader: Arc<ChunkReader>,
+) -> Result<()> {
+    let chunk_reader = Arc::new(chunk_reader);
 
-//         // data map
-//         let serialized_data_map = data_map.into_memory();
-//         // graph
-//         let serialized_graph_store = graph_on_storage.into_storage().into_memory();
-//         // backlinks
-//         let serialized_backlinks_map: Vec<u8> = ICRBTree::build_from_vec_u8(
-//             backlinks
-//                 .into_iter()
-//                 .map(|links| bytemuck::cast_slice(&links).to_vec())
-//                 .collect(),
-//         )
-//         .into_memory();
+    println!(
+        "chunk num: {}",
+        num_chunks(chunk_reader.file_size(), chunk_byte_size)
+    );
 
-//         let data = MemoryAndMetadata {
-//             medoid_index, 
-//             num_vectors, 
-//             vector_dim, 
-//             edge_degrees, 
-//             serialized_data_map, 
-//             serialized_graph_store, 
-//             serialized_backlinks_map,
-//         };
+    while let UploadLoop::Continue(uploaded_chunks) = {
+        println!("calling missing_chunks...");
+        let uploaded_chunks = get_missing_chunks(&agent, target_canister_id, &chunk_type).await?;
+        println!(
+            "un_uploaded_chunks: {:?}",
+            uploaded_chunks
+                .iter()
+                .enumerate()
+                .filter_map(|(index, bit)| if !bit { Some(index) } else { None })
+                .collect::<Vec<usize>>()
+        );
+        let missing_counts = uploaded_chunks.iter().filter(|bit| !**bit).count();
 
-//         bincode::serialize(&data).unwrap()
+        assert!(chunk_reader.file_size() <= uploaded_chunks.len() * chunk_byte_size);
 
-//     }
-// }
+        match missing_counts {
+            0 => UploadLoop::Done,
+            _ => {
+                println!("missing_counts: {missing_counts}");
+                UploadLoop::Continue(uploaded_chunks)
+            }
+        }
+    } {
+        let uploaded_chunks_len = uploaded_chunks.len();
 
-// #[derive(candid::CandidType, candid::Deserialize, Clone, Copy)]
-// pub enum ChunkType {
-//     Graph,
-//     DataMap,
-//     BacklinksMap
-// }
-// enum UploadLoop {
-//     Done,
-//     Continue(BitVec<u8>),
-// }
+        let task_stream = stream::iter(
+            uploaded_chunks
+                .into_iter()
+                .enumerate()
+                .filter_map(|(index, bit)| if !bit { Some(index) } else { None }),
+        )
+        .map(|chunk_index| {
+            let agent = agent.clone();
+            let chunk_reader = chunk_reader.clone();
+            tokio::spawn(async move {
+                // Load chunk data from disk
+                let chunk_byte_data = chunk_reader.read(chunk_index);
 
-// async fn upload_raw_memory(chunk_byte_size: usize, agent: Arc<Agent>, target_canister_id: Principal, chunk_type: ChunkType, chunk_reader: ChunkReader) -> Result<()> {
+                // upload chunk into canister
+                let response = call_upload_chunk(
+                    &agent,
+                    target_canister_id,
+                    (chunk_byte_data, chunk_index as u64),
+                    &chunk_type,
+                )
+                .await;
+                println!("chunk_index: {chunk_index}/{uploaded_chunks_len}");
+                match response {
+                    Ok(_) => {}
+                    Err(err) => {
+                        println!("{:?}", err);
+                    }
+                }
+            })
+        });
 
-//     let chunk_reader = Arc::new(chunk_reader);
+        let _results: Vec<_> = task_stream.buffered(20).collect().await;
+    }
 
-//     while let UploadLoop::Continue(uploaded_chunks) = {
-//         println!("calling missing_chunks...");
-//         let uploaded_chunks = get_missing_chunks(&agent, target_canister_id, &chunk_type).await?;
-//         let missing_counts = uploaded_chunks.iter().filter(|bit| !**bit).count();
+    Ok(())
+}
 
-//         assert!(chunk_reader.file_size() <= uploaded_chunks.len() * chunk_byte_size);
+fn num_chunks(bytes_len: usize, chunk_byte_size: usize) -> usize {
+    (bytes_len + chunk_byte_size - 1) / chunk_byte_size
+}
 
-//         match missing_counts {
-//             0 => UploadLoop::Done,
-//             _ => {
-//                 println!("missing_counts: {missing_counts}");
-//                 UploadLoop::Continue(uploaded_chunks)
-//             }
-//         }
-//     } {
-//         let uploaded_chunks_len = uploaded_chunks.len();
+async fn get_agent(name: &str, is_ic: bool) -> Result<Agent> {
+    let mut path = dirs::home_dir().unwrap();
+    path.push(format!(".config/dfx/identity/{name}/identity.pem"));
+    let user_identity = identity::Secp256k1Identity::from_pem_file(path).unwrap();
+    let host = if is_ic {
+        "https://ic0.app"
+    } else {
+        "http://127.0.0.1:4943"
+    };
+    let agent = Agent::builder()
+        .with_url(host)
+        .with_identity(user_identity)
+        .build()?;
 
-//         let task_stream = stream::iter(
-//             uploaded_chunks
-//                 .into_iter()
-//                 .enumerate()
-//                 .filter_map(|(index, bit)| if !bit { Some(index) } else { None }),
-//         )
-//         .map(|chunk_index| {
-//             let agent = agent.clone();
-//             let chunk_reader = chunk_reader.clone();
-//             tokio::spawn(async move {
-//                 // Load chunk data from disk
-//                 let chunk_byte_data = chunk_reader.read(chunk_index);
+    if !is_ic {
+        agent.fetch_root_key().await.unwrap();
+    }
 
-//                 // upload chunk into canister
-//                 let response = call_upload_chunk(
-//                     &agent,
-//                     target_canister_id,
-//                     (chunk_byte_data, chunk_index as u64),
-//                     &chunk_type
-//                 )
-//                 .await;
-//                 println!("chunk_index: {chunk_index}/{uploaded_chunks_len}");
-//                 match response {
-//                     Ok(_) => {}
-//                     Err(err) => {
-//                         println!("{:?}", err);
-//                     }
-//                 }
-//             })
-//         });
+    Ok(agent)
+}
 
-//         let _results: Vec<_> = task_stream.buffered(20).collect().await;
-//     }
+#[cfg(feature = "embedding-command")]
+async fn get_anonymous_agent(is_ic: bool) -> Result<Agent> {
+    let host = if is_ic {
+        "https://ic0.app"
+    } else {
+        "http://127.0.0.1:4943"
+    };
+    let agent = Agent::builder().with_url(host).build()?;
 
-//     Ok(())
-// }
+    if !is_ic {
+        agent.fetch_root_key().await.unwrap();
+    }
 
-// async fn get_agent(name: &str, is_ic: bool) -> Result<Agent> {
-//     let mut path = dirs::home_dir().unwrap();
-//     path.push(format!(".config/dfx/identity/{name}/identity.pem"));
-//     let user_identity = identity::Secp256k1Identity::from_pem_file(path).unwrap();
-//     let host = if is_ic {
-//         "https://ic0.app"
-//     } else {
-//         "http://127.0.0.1:4943"
-//     };
-//     let agent = Agent::builder()
-//         .with_url(host)
-//         .with_identity(user_identity)
-//         .build()?;
+    Ok(agent)
+}
+#[cfg(feature = "embedding-command")]
+#[derive(CandidType, serde::Serialize, serde::Deserialize, Debug)]
+pub struct SearchResponse {
+    pub(crate) similarity: f32,
+    pub(crate) data: String,
+}
+#[cfg(feature = "embedding-command")]
+async fn call_search(
+    agent: &Agent,
+    target_canister_id: Principal,
+    query_vector: &Vec<f32>,
+) -> Result<Vec<SearchResponse>> {
+    let method_name = "search";
+    let top_k: u64 = 5;
+    let size_l: u64 = 100;
+    let response = agent
+        .query(&target_canister_id, method_name)
+        .with_arg(Encode!(query_vector, &top_k, &size_l)?)
+        .call()
+        .await?;
+    let k_ann = Decode!(&response, Vec<SearchResponse>)?;
 
-//     if !is_ic {
-//         agent.fetch_root_key().await.unwrap();
-//     }
+    Ok(k_ann)
+}
 
-//     Ok(agent)
-// }
+async fn call_status_code(agent: &Agent, target_canister_id: Principal) -> Result<u8> {
+    let method_name = "status_code";
+    let response = agent
+        .query(&target_canister_id, method_name)
+        .with_arg(Encode!()?)
+        .call()
+        .await?;
+    let status_code = Decode!(&response, u8)?;
 
-// async fn get_anonymous_agent(is_ic: bool) -> Result<Agent> {
-//     let host = if is_ic {
-//         "https://ic0.app"
-//     } else {
-//         "http://127.0.0.1:4943"
-//     };
-//     let agent = Agent::builder().with_url(host).build()?;
+    Ok(status_code)
+}
 
-//     if !is_ic {
-//         agent.fetch_root_key().await.unwrap();
-//     }
+async fn get_missing_chunks(
+    agent: &Agent,
+    target_canister_id: Principal,
+    chunk_type: &ChunkType,
+) -> Result<BitVec<u8, Lsb0>> {
+    let mut data = Vec::new();
+    let mut index = 0;
+    while let Some(bytes) =
+        call_missing_chunks(agent, target_canister_id, index, chunk_type).await?
+    {
+        println!("fetch");
+        data.extend(bytes);
+        index += 1;
+    }
 
-//     Ok(agent)
-// }
+    let uploaded_chunks: BitVec<u8, Lsb0> = bincode::deserialize(&data).unwrap();
 
-// #[derive(CandidType, Deserialize)]
-// pub struct ResponseSearchQuery {
-//     k_ann: Vec<(f32, u32)>,
-//     visited: Vec<(f32, u32)>,
-//     time: u64,
-// }
+    Ok(uploaded_chunks)
+}
 
-// async fn call_search(
-//     agent: &Agent,
-//     target_canister_id: Principal,
-//     query_vector: &Vec<f32>,
-//     simd: bool,
-// ) -> Result<Vec<(f32, u32)>> {
-//     let method_name = if simd { "search_with_simd" } else { "search" };
-//     let top_k: u64 = 5;
-//     let size_l: u64 = 100;
-//     let response = agent
-//         .query(&target_canister_id, method_name)
-//         .with_arg(Encode!(query_vector, &top_k, &size_l)?)
-//         .call()
-//         .await?;
-//     let k_ann = Decode!(&response, Vec<(f32, u32)>)?;
-//     // println!("time: {}", response.time);
+async fn call_missing_chunks(
+    agent: &Agent,
+    target_canister_id: Principal,
+    index: u64,
+    chunk_type: &ChunkType,
+) -> Result<Option<Vec<u8>>> {
+    let method_name = "missing_chunks";
+    let response = agent
+        .query(&target_canister_id, method_name)
+        .with_arg(Encode!(&index, chunk_type)?)
+        .call()
+        .await?;
+    let Some(uploaded_chunks) = Decode!(&response, Option<Vec<u8>>)? else {
+        return Ok(None);
+    };
 
-//     Ok(k_ann)
-// }
+    Ok(Some(uploaded_chunks))
+}
 
-// async fn call_status_code(agent: &Agent, target_canister_id: Principal) -> Result<u8> {
-//     let method_name = "status_code";
-//     let response = agent
-//         .query(&target_canister_id, method_name)
-//         .with_arg(Encode!()?)
-//         .call()
-//         .await?;
-//     let status_code = Decode!(&response, u8)?;
+async fn call_upload_chunk(
+    agent: &Agent,
+    target_canister_id: Principal,
+    arg: (Vec<u8>, u64),
+    chunk_type: &ChunkType,
+) -> Result<()> {
+    let method_name = "upload_chunk";
+    let (chunk, index) = arg;
+    let _ = agent
+        .update(&target_canister_id, method_name)
+        .with_arg(Encode!(&chunk, &index, chunk_type)?)
+        .call_and_wait()
+        .await?;
+    Ok(())
+}
 
-//     Ok(status_code)
-// }
+async fn call_initialize(
+    agent: &Agent,
+    target_canister_id: Principal,
 
-// async fn get_missing_chunks(
-//     agent: &Agent,
-//     target_canister_id: Principal,
-//     chunk_type: &ChunkType,
-// ) -> Result<BitVec<u8, Lsb0>> {
-//     let mut data = Vec::new();
-//     let mut index = 0;
-//     while let Some(bytes) = call_missing_chunks(agent, target_canister_id, index, chunk_type).await? {
-//         println!("fetch");
-//         data.extend(bytes);
-//         index += 1;
-//     }
+    // num_chunks: u64,
+    // chunk_byte_size: u64,
+    // medoid_node_index: u32,
+    // sector_byte_size: u64,
+    // num_vectors: u64,
+    // vector_dim: u64,
+    // edge_degrees: u64,
+    num_graph_chunks: u64,
+    num_datamap_chunks: u64,
+    num_backlinks_chunks: u64,
+    chunk_byte_size: u64,
 
-//     let uploaded_chunks: BitVec<u8, Lsb0> = bincode::deserialize(&data).unwrap();
+    db_key: String,
+) -> Result<()> {
+    let method_name = "start_loading";
 
-//     Ok(uploaded_chunks)
-// }
+    // This field is for compatibility and is ignored in the current version.
+    let medoid_node_index: u32 = 0;
+    let sector_byte_size: u64 = 0;
+    let num_vectors: u64 = 0;
+    let vector_dim: u64 = 0;
+    let edge_degrees: u64 = 0;
 
-// async fn call_missing_chunks(
-//     agent: &Agent,
-//     target_canister_id: Principal,
-//     index: u64,
-//     chunk_type: &ChunkType,
-// ) -> Result<Option<Vec<u8>>> {
-//     let method_name = "missing_chunks";
-//     let response = agent
-//         .query(&target_canister_id, method_name)
-//         .with_arg(Encode!(&index, chunk_type)?)
-//         .call()
-//         .await?;
-//     let Some(uploaded_chunks) = Decode!(&response, Option<Vec<u8>>)? else {
-//         return Ok(None);
-//     };
+    let _ = agent
+        .update(&target_canister_id, method_name)
+        .with_arg(Encode!(
+            &num_graph_chunks,
+            &num_datamap_chunks,
+            &num_backlinks_chunks,
+            &chunk_byte_size,
+            &medoid_node_index,
+            &sector_byte_size,
+            &num_vectors,
+            &vector_dim,
+            &edge_degrees,
+            &db_key
+        )?)
+        .call_and_wait()
+        .await?;
+    Ok(())
+}
 
-//     Ok(Some(uploaded_chunks))
-// }
+fn _open_file_as_string(path: &Path) -> Result<String> {
+    let mut content = String::new();
+    File::open(path)?.read_to_string(&mut content)?;
+    Ok(content)
+}
 
-// async fn call_upload_chunk(
-//     agent: &Agent,
-//     target_canister_id: Principal,
-//     arg: (Vec<u8>, u64),
-//     chunk_type: &ChunkType,
-// ) -> Result<()> {
-//     let method_name = "upload_chunk";
-//     let (chunk, index, ) = arg;
-//     let _ = agent
-//         .update(&target_canister_id, method_name)
-//         .with_arg(Encode!(&chunk, &index, chunk_type)?)
-//         .call_and_wait()
-//         .await?;
-//     Ok(())
-// }
-
-
-
-
-
-
-
-
-
-
-// async fn call_initialize(
-//     agent: &Agent,
-//     target_canister_id: Principal,
-
-//     num_chunks: u64,
-//     chunk_byte_size: u64,
-//     medoid_node_index: u32,
-//     sector_byte_size: u64,
-//     num_vectors: u64,
-//     vector_dim: u64,
-//     edge_degrees: u64,
-// ) -> Result<()> {
-//     let method_name = "initialize";
-//     let _ = agent
-//         .update(&target_canister_id, method_name)
-//         .with_arg(Encode!(
-//             &num_chunks,
-//             &chunk_byte_size,
-//             &medoid_node_index,
-//             &sector_byte_size,
-//             &num_vectors,
-//             &vector_dim,
-//             &edge_degrees
-//         )?)
-//         .call_and_wait()
-//         .await?;
-//     Ok(())
-// }
-
-// async fn get_missing_chunks(
-//     agent: &Agent,
-//     target_canister_id: Principal,
-//     chunk_type: ChunkType,
-// ) -> Result<BitVec<u8, Lsb0>> {
-//     let mut data = Vec::new();
-//     let mut index = 0;
-//     while let Some(bytes) = call_missing_chunks(agent, target_canister_id, index).await? {
-//         println!("fetch");
-//         data.extend(bytes);
-//         index += 1;
-//     }
-
-//     let uploaded_chunks: BitVec<u8, Lsb0> = bincode::deserialize(&data).unwrap();
-
-//     Ok(uploaded_chunks)
-// }
-
-// async fn call_missing_chunks(
-//     agent: &Agent,
-//     target_canister_id: Principal,
-//     index: u64,
-//     chunk_type: ChunkType,
-// ) -> Result<Option<Vec<u8>>> {
-//     let method_name = "missing_chunks";
-//     let response = agent
-//         .query(&target_canister_id, method_name)
-//         .with_arg(Encode!(&index)?)
-//         .call()
-//         .await?;
-//     let Some(uploaded_chunks) = Decode!(&response, Option<Vec<u8>>)? else {
-//         return Ok(None);
-//     };
-
-//     Ok(Some(uploaded_chunks))
-// }
-
-// async fn call_upload_chunk(
-//     agent: &Agent,
-//     target_canister_id: Principal,
-//     arg: (Vec<u8>, u64),
-// ) -> Result<()> {
-//     let method_name = "upload_chunk";
-//     let (chunk, index) = arg;
-//     let _ = agent
-//         .update(&target_canister_id, method_name)
-//         .with_arg(Encode!(&chunk, &index)?)
-//         .call_and_wait()
-//         .await?;
-//     Ok(())
-// }
+fn open_file_as_bytes(path: &Path) -> Result<Vec<u8>> {
+    let mut file = File::open(path)?;
+    let mut content = Vec::new();
+    file.read_to_end(&mut content)?;
+    Ok(content)
+}

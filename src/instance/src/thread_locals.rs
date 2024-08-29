@@ -1,5 +1,7 @@
 use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemory};
-use ic_stable_structures::{BTreeMap as StableBTreeMap, Cell as StableCell, Vec as SVec, DefaultMemoryImpl};
+use ic_stable_structures::{
+    BTreeMap as StableBTreeMap, Cell as StableCell, DefaultMemoryImpl, Vec as SVec,
+};
 
 use rand::rngs::StdRng;
 use std::cell::RefCell;
@@ -55,8 +57,8 @@ thread_local! {
     SVec::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(FREE_ID_LIST_MEMORY_ID)))).unwrap()
   );
 
-  pub static BATCH_POOL: RefCell<SVec<OptType, VMemory>> = RefCell::new(
-    SVec::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(BATCH_POOL_MEMORY_ID)))).unwrap()
+  pub static BATCH_POOL: RefCell<StableBTreeMap<u32, OptType, VMemory>> = RefCell::new(
+    StableBTreeMap::init(MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(BATCH_POOL_MEMORY_ID))))
   );
 
   pub static CEMETERY: RefCell<SVec<u32, VMemory>> = RefCell::new(
