@@ -19,6 +19,7 @@ fn batch_pool(
 ) -> Vec<u32> {
     let mut graph = load_graph();
 
+
     let mut new_ids: Vec<_> = vec![];
     BATCH_POOL.with(|list| {
         let mut list = list.borrow_mut();
@@ -48,39 +49,88 @@ fn batch_pool(
     new_ids
 }
 
+
 #[update(guard = "is_owner")]
-fn batch() {
-    let mut insert = Vec::new();
+async fn batch() {
     let mut graph = load_graph();
-    BATCH_POOL.with(|list| {
-        let mut list = list.borrow_mut();
-        SOURCE_DATA.with(|data_map| {
-            let mut data_map = data_map.borrow_mut();
-            while let Some((id, item)) = list.pop_first() {
-                match item {
-                    OptType::Delete => graph.suspect(id),
-                    OptType::Modify(new_metadata) => {
-                        data_map.insert(id, new_metadata);
-                    }
-                    OptType::Insert(new_metadata) => {
-                        insert.push(id);
-                        data_map.insert(id, new_metadata);
-                    }
-                }
+
+    let mut maximum_num_instructions: u64 = 0;
+
+    const EXECUTION_LIMIT: u64 = 40000000000;
+
+    while let Some((id, item)) = BATCH_POOL.with(|list| list.borrow_mut().pop_first()) {
+        match item {
+            OptType::Delete => {
+                // ic_cdk::println!("delete id : {id}");
+                graph.suspect(id)
+            },
+            OptType::Modify(new_metadata) => {
+                SOURCE_DATA.with(|data_map| {
+                    let mut data_map = data_map.borrow_mut();
+                    data_map.insert(id, new_metadata);
+                });
             }
-        });
-    });
+            OptType::Insert(new_metadata) => {
+                SOURCE_DATA.with(|data_map| {
+                    let mut data_map = data_map.borrow_mut();
+                    data_map.insert(id, new_metadata);
+                });
+                let start = ic_cdk::api::instruction_counter();
+                vectune::insert(&mut graph, InsertType::<Point>::Id(id));
+                let current = ic_cdk::api::instruction_counter();
 
-    ic_cdk::println!("update metadata");
+                /*
+                Note:
+                insertの前後で、命令数を見て、もう一度やったらlimitになる場合にcommit-callをする。
+                */
+                maximum_num_instructions = std::cmp::max(maximum_num_instructions, current - start);
 
+                if current + (maximum_num_instructions * 2) >  EXECUTION_LIMIT {
+                    let _: Result<(), _> = ic_cdk::call(ic_cdk::id(), "commit", ()).await;
+                }
+
+
+            }
+        }
+    }
+
+    let _: Result<(), _> = ic_cdk::call(ic_cdk::id(), "commit", ()).await;
     vectune::delete::<Point, Graph<Storage>>(&mut graph);
-    ic_cdk::println!("delete");
 
-    insert.into_iter().for_each(|id| {
-        vectune::insert(&mut graph, InsertType::<Point>::Id(id));
-    });
+    // let mut insert = Vec::new();
 
-    ic_cdk::println!("insert");
+    // BATCH_POOL.with(|list| {
+    //     let mut list = list.borrow_mut();
+    //     SOURCE_DATA.with(|data_map| {
+    //         let mut data_map = data_map.borrow_mut();
+    //         while let Some((id, item)) = list.pop_first() {
+    //             match item {
+    //                 OptType::Delete => {
+    //                     // ic_cdk::println!("delete id : {id}");
+    //                     graph.suspect(id)
+    //                 },
+    //                 OptType::Modify(new_metadata) => {
+    //                     data_map.insert(id, new_metadata);
+    //                 }
+    //                 OptType::Insert(new_metadata) => {
+    //                     insert.push(id);
+    //                     data_map.insert(id, new_metadata);
+    //                 }
+    //             }
+    //         }
+    //     });
+    // });
+
+    // ic_cdk::println!("update metadata");
+
+    // vectune::delete::<Point, Graph<Storage>>(&mut graph);
+    // ic_cdk::println!("delete");
+
+    // insert.into_iter().for_each(|id| {
+    //     vectune::insert(&mut graph, InsertType::<Point>::Id(id));
+    // });
+
+    // ic_cdk::println!("insert");
 }
 
 pub fn load_graph() -> Graph<Storage> {
