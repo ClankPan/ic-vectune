@@ -337,7 +337,7 @@ pub struct Vectune {
 impl Vectune {
     #[wasm_bindgen(constructor)]
     pub fn new(params: JsValue) -> Self {
-        let (dim, degree): (usize, usize) = serde_wasm_bindgen::from_value(input).map_err(|m| JsError::new(&m.to_string()))?;
+        let (dim, degree): (usize, usize) = serde_wasm_bindgen::from_value(params).map_err(|m| JsError::new(&m.to_string()))?;
         Vectune::_new(dim, degree)
     }
 
