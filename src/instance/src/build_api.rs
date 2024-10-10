@@ -26,11 +26,11 @@ async fn start_loading(
     num_datamap_chunks: u64,
     num_backlinks_chunks: u64,
     chunk_byte_size: u64,
-    medoid_node_index: u32,
-    sector_byte_size: u64,
-    num_vectors: u64,
-    vector_dim: u64,
-    edge_degrees: u64,
+    _medoid_node_index: u32,
+    _sector_byte_size: u64,
+    _num_vectors: u64,
+    _vector_dim: u64,
+    _edge_degrees: u64,
     db_key: String,
 ) {
     METADATA.with(|metadata| {

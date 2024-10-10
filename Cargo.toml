@@ -8,3 +8,6 @@ resolver = "2"
 
 [patch."https://github.com/ClankPan/Vectune"]
 vectune = {path = "../vectune"}
+
+[patch."https://github.com/ClankPan/ssd-vectune"]
+ssd-vectune = {path = "../ssd-vectune"}

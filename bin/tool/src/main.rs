@@ -106,6 +106,16 @@ enum Commands {
         #[arg(long, default_value = "default")]
         name: String,
     },
+
+    Batch {
+        #[arg(long)]
+        ic: bool,
+        #[arg(long)]
+        target_canister_id: String,
+
+        #[arg(long, default_value = "default")]
+        name: String,
+    }
 }
 
 #[tokio::main]
@@ -309,9 +319,9 @@ async fn main() -> Result<()> {
                 tokenizer,
             };
 
-            let mut model = ssd_vectune::embed::EmbeddingModel::new(model_params)?;
+            let model = ssd_vectune::embed::EmbeddingModel::new(model_params)?;
 
-            let query_vector = model.get_embeddings(&vec![query_text], true).expect("msg");
+            let query_vector = model.get_embeddings(&vec![query_text], true, "query").expect("msg");
 
             let k_ann = call_search(&agent, target_canister_id, &query_vector[0]).await?;
 
@@ -319,7 +329,34 @@ async fn main() -> Result<()> {
 
             Ok(())
         }
+        Commands::Batch { ic, target_canister_id, name } => {
+            let agent = Arc::new(get_agent(&name, ic).await?);
+            let target_canister_id = Principal::from_text(target_canister_id)?;
+
+            while let Some(remain_batch_list_len) = call_next_batch_step(agent.clone(), target_canister_id).await? {
+                println!("remain_batch_list_len: {remain_batch_list_len}");
+            }
+
+            Ok(())
+        }
     }
+}
+
+async fn call_next_batch_step(
+    agent: Arc<Agent>,
+    target_canister_id: Principal,
+) -> Result<Option<u64> >{
+    let method_name = "next_batch_step";
+
+    let max_iter: u64 = 5;
+
+    let response = agent
+        .update(&target_canister_id, method_name)
+        .with_arg(Encode!(&max_iter)?)
+        .call_and_wait()
+        .await?;
+
+     Ok(Decode!(&response, Option<u64>)?)
 }
 
 #[derive(candid::CandidType, candid::Deserialize, Clone, Copy)]

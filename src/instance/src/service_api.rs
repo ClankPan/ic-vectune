@@ -51,14 +51,17 @@ fn batch_pool(
 
 
 #[update(guard = "is_owner")]
-async fn batch() {
+async fn next_batch_step(max_iter: u64) -> Option<u64> {
     let mut graph = load_graph();
 
     let mut maximum_num_instructions: u64 = 0;
 
     const EXECUTION_LIMIT: u64 = 40000000000;
 
-    while let Some((id, item)) = BATCH_POOL.with(|list| list.borrow_mut().pop_first()) {
+    
+    let mut iter_count = 0;
+
+    while let (Some((id, item)), list_len) = BATCH_POOL.with(|list| {let mut list = list.borrow_mut(); (list.pop_first(), list.len())}) {
         match item {
             OptType::Delete => {
                 // ic_cdk::println!("delete id : {id}");
@@ -85,52 +88,28 @@ async fn batch() {
                 */
                 maximum_num_instructions = std::cmp::max(maximum_num_instructions, current - start);
 
-                if current + (maximum_num_instructions * 2) >  EXECUTION_LIMIT {
-                    let _: Result<(), _> = ic_cdk::call(ic_cdk::id(), "commit", ()).await;
-                }
+                if current + (maximum_num_instructions + maximum_num_instructions / 2) >  EXECUTION_LIMIT {
+                    ic_cdk::println!("list_len: {list_len}, current instructions: {current}, maximum_num_instructions: {maximum_num_instructions}");
+                    iter_count += 1;
 
+                    if iter_count >= max_iter {
+                        return  Some(list_len)
+                    } else {
+                        let _: Result<(), _> = ic_cdk::call(ic_cdk::id(), "commit", ()).await;
+                    }
+                    
+                }
 
             }
         }
-    }
 
+    }
+    
     let _: Result<(), _> = ic_cdk::call(ic_cdk::id(), "commit", ()).await;
     vectune::delete::<Point, Graph<Storage>>(&mut graph);
 
-    // let mut insert = Vec::new();
+    None
 
-    // BATCH_POOL.with(|list| {
-    //     let mut list = list.borrow_mut();
-    //     SOURCE_DATA.with(|data_map| {
-    //         let mut data_map = data_map.borrow_mut();
-    //         while let Some((id, item)) = list.pop_first() {
-    //             match item {
-    //                 OptType::Delete => {
-    //                     // ic_cdk::println!("delete id : {id}");
-    //                     graph.suspect(id)
-    //                 },
-    //                 OptType::Modify(new_metadata) => {
-    //                     data_map.insert(id, new_metadata);
-    //                 }
-    //                 OptType::Insert(new_metadata) => {
-    //                     insert.push(id);
-    //                     data_map.insert(id, new_metadata);
-    //                 }
-    //             }
-    //         }
-    //     });
-    // });
-
-    // ic_cdk::println!("update metadata");
-
-    // vectune::delete::<Point, Graph<Storage>>(&mut graph);
-    // ic_cdk::println!("delete");
-
-    // insert.into_iter().for_each(|id| {
-    //     vectune::insert(&mut graph, InsertType::<Point>::Id(id));
-    // });
-
-    // ic_cdk::println!("insert");
 }
 
 pub fn load_graph() -> Graph<Storage> {

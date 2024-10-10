@@ -10,7 +10,7 @@ pub use simd_point::Point as SIMDPoint;
 use ssd_vectune::storage::StorageTrait;
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::mem::size_of;
+// use std::mem::size_of;
 
 use crate::{simd_point, WASM_PAGE_SIZE};
 
