@@ -36,6 +36,8 @@ impl PointInterface for Point {
     }
 }
 
+
+#[cfg(target_arch = "wasm32")]
 #[target_feature(enable = "simd128")]
 fn dot_product(vec1: &Point, vec2: &Point) -> f32 {
     use std::arch::wasm32::*;
@@ -76,52 +78,10 @@ fn dot_product(vec1: &Point, vec2: &Point) -> f32 {
         + f32x4_extract_lane::<3>(result);
 
     final_result
-
-
-    // assert_eq!(vec1.0.len(), vec2.0.len());
-    // let dim: usize = vec1.0.len();
-    // let mut result = f32x4_splat(0.0);
-    // let mut i = 0;
-
-    // while i + 4 <= dim {
-    //     let v1 = v128_load(vec1.0.as_ptr().add(i) as *const v128);
-    //     let v2 = v128_load(vec2.0.as_ptr().add(i) as *const v128);
-    //     let mul = f32x4_mul(v1, v2);
-    //     result = f32x4_add(result, mul);
-    //     i += 4;
-    // }
-
-    // let mut final_result = f32x4_extract_lane::<0>(result)
-    //     + f32x4_extract_lane::<1>(result)
-    //     + f32x4_extract_lane::<2>(result)
-    //     + f32x4_extract_lane::<3>(result);
-
-    // // 余った要素を計算する
-    // while i < dim {
-    //     final_result += vec1.0[i] * vec2.0[i];
-    //     i += 1;
-    // }
-
-    // final_result
 }
 
-// fn norm(vec: &Point) -> f32 {
-//     let dim = vec.0.len();
-//     let mut result = 0.0;
-//     for i in 0..dim {
-//         result += vec.0[i] * vec.0[i];
-//     }
-//     result.sqrt()
-// }
 
-// fn cosine_similarity(vec1: &Point, vec2: &Point) -> f32 {
-//     let dot = dot_product(vec1, vec2);
-//     let norm1 = norm(vec1);
-//     let norm2 = norm(vec2);
-
-//     if norm1 == 0.0 || norm2 == 0.0 {
-//         return 0.0;
-//     }
-
-//     dot / (norm1 * norm2)
-// }
+#[cfg(not(target_arch = "wasm32"))]
+fn dot_product(_vec1: &Point, _vec2: &Point) -> f32 {
+    todo!();
+}
